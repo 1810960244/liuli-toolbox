@@ -71,7 +71,20 @@ public class MainActivity extends Activity {
         s.setLoadWithOverviewMode(true);
         s.setMediaPlaybackRequiresUserGesture(false);
 
-        web.setWebViewClient(new WebViewClient());
+        /* WebView 默认不处理 mailto: / tel: 这类外部 scheme —— 点了完全没反应。
+           反馈邮件按钮要能用，必须自己接管。 */
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest req) {
+                return handleExternalUrl(req.getUrl().toString());
+            }
+
+            @Override
+            @SuppressWarnings("deprecation")
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleExternalUrl(url + "");
+            }
+        });
         /* 默认的 WebChromeClient 不处理文件选择，网页里所有 <input type="file">
            在 App 内都会「点了没反应」。这里必须自己接管，否则图片去水印、
            压缩、拼接、切图、打包 ZIP、OCR 等十二个工具全部失效。 */
@@ -133,6 +146,45 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
         if (n.isEmpty() || !n.contains(".")) n = "toolbox-" + System.currentTimeMillis();
         return n;
+    }
+
+    /** 链接分流：站内留在 WebView；mailto/tel 交给系统；其他外链走系统浏览器。
+        返回 true 表示已由原生接管，WebView 不再加载该地址。 */
+    private boolean handleExternalUrl(String url) {
+        if (url == null || url.isEmpty()) return false;
+        String low = url.toLowerCase();
+        /* 本站域名继续在应用内打开（含即将上线的博客 www.liulichat.cn） */
+        if (low.startsWith("https://toolbox.liulichat.cn")
+                || low.startsWith("https://www.liulichat.cn")
+                || low.startsWith("https://liulichat.cn")) {
+            return false;
+        }
+        try {
+            if (low.startsWith("mailto:")) {
+                Intent it = new Intent(Intent.ACTION_SENDTO, Uri.parse(url));
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(it);
+                return true;
+            }
+            if (low.startsWith("tel:") || low.startsWith("sms:") || low.startsWith("smsto:")) {
+                Intent it = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(it);
+                return true;
+            }
+            if (low.startsWith("http://") || low.startsWith("https://")) {
+                Intent it = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(it);
+                return true;
+            }
+        } catch (Exception e) {
+            toast(low.startsWith("mailto:")
+                    ? "没有找到邮件应用，可手动发送到 hello@example.com"
+                    : "无法打开该链接");
+            return true;
+        }
+        return false;
     }
 
     /* Android 6~12 需要运行时授权才能读取本地文件；13+ 走分区存储不再需要 */
