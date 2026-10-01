@@ -168,6 +168,22 @@ function liuliErrMsg(r){
   var code = String(r.error || r.code || '');
   return m[code] || (r.message || r.error || ('操作失败' + (r.__status ? '（' + r.__status + '）' : '')));
 }
+/* App 壳版本检查：只装在 App 内才检查（靠 AndroidBridge 判定）。
+   壳太旧时文件选择等原生能力缺失，网页再新也救不回来，必须提示更新。 */
+function checkAppUpdate(){
+  var B = window.AndroidBridge;
+  if (!B || typeof B.getVersionCode !== 'function') return;
+  var cur = 0;
+  try { cur = B.getVersionCode(); } catch(e){ return; }
+  fetch('app-version.json', { cache: 'no-store' }).then(function(r){
+    return r.json();
+  }).then(function(j){
+    if (!j || !j.code || cur >= j.code) return;
+    toast('当前 App 版本较旧，v' + j.name + ' 已发布：' + (j.note || '') +
+          '。请在「我的 → 获取」下载更新', 8000);
+  }).catch(function(){});
+}
+
 /* 登录成功后的地区 / IP / 时间提示。
    归属地查不到只降级显示 IP，任何失败都不阻塞登录流程。 */
 function fmtClock(ts){
@@ -650,6 +666,7 @@ function boot(){
   if (Motion.ok) document.documentElement.classList.add('js-ready');
   applyTheme(state.theme);
   initAuth();
+  checkAppUpdate();
   $('#tabbar').addEventListener('click', function(e){
     var b = e.target.closest('.tab'); if (!b) return;
     switchTab(b.dataset.tab);

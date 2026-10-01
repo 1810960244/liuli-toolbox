@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DownloadManager;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -20,6 +23,8 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
@@ -36,8 +41,15 @@ import java.util.Map;
 public class MainActivity extends Activity {
 
     private static final String HOME = "https://toolbox.liulichat.cn/";
+    /* 必须与 .github/workflows/build-apk.yml 的 VERSION_CODE 保持一致，
+       网页靠它判断用户装的是不是旧壳 —— 壳太旧时文件选择等能力不可用 */
+    private static final int APP_VERSION = 3;
+    private static final int REQ_FILE = 1001;
+    private static final int REQ_PERM = 1002;
     private WebView web;
     private long lastBack = 0;
+    /* 网页 <input type="file"> 的回调，必须持有到 onActivityResult */
+    private ValueCallback<Uri[]> filePathCallback;
     /* 下载 id → 文件名，用于下载完成后弹窗告知保存位置 */
     private final Map<Long, String> dlNames = new HashMap<>();
     private BroadcastReceiver dlReceiver;
@@ -57,7 +69,30 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
 
         web.setWebViewClient(new WebViewClient());
-        web.setWebChromeClient(new WebChromeClient());
+        /* 默认的 WebChromeClient 不处理文件选择，网页里所有 <input type="file">
+           在 App 内都会「点了没反应」。这里必须自己接管，否则图片去水印、
+           压缩、拼接、切图、打包 ZIP、OCR 等十二个工具全部失效。 */
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView wv, ValueCallback<Uri[]> cb,
+                                             FileChooserParams params) {
+                if (filePathCallback != null) {
+                    filePathCallback.onReceiveValue(null);
+                    filePathCallback = null;
+                }
+                filePathCallback = cb;
+                try {
+                    Intent i = params.createIntent();
+                    startActivityForResult(Intent.createChooser(i, "选择文件"), REQ_FILE);
+                } catch (Exception e) {
+                    filePathCallback = null;
+                    toast("无法打开文件选择器：" + e.getMessage());
+                    return false;
+                }
+                return true;
+            }
+        });
+        askStoragePermissionIfNeeded();
         web.addJavascriptInterface(new Bridge(), "AndroidBridge");
 
         web.setDownloadListener(new DownloadListener() {
@@ -95,6 +130,44 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {}
         if (n.isEmpty() || !n.contains(".")) n = "toolbox-" + System.currentTimeMillis();
         return n;
+    }
+
+    /* Android 6~12 需要运行时授权才能读取本地文件；13+ 走分区存储不再需要 */
+    private void askStoragePermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                || Build.VERSION.SDK_INT > 32) return;
+        if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        if (req != REQ_FILE) {
+            super.onActivityResult(req, res, data);
+            return;
+        }
+        if (filePathCallback == null) {
+            super.onActivityResult(req, res, data);
+            return;
+        }
+        Uri[] results = null;
+        if (res == Activity.RESULT_OK && data != null) {
+            ClipData cd = data.getClipData();
+            if (cd != null) {
+                results = new Uri[cd.getItemCount()];
+                for (int i = 0; i < cd.getItemCount(); i++) {
+                    results[i] = cd.getItemAt(i).getUri();
+                }
+            } else if (data.getDataString() != null) {
+                results = new Uri[]{Uri.parse(data.getDataString())};
+            }
+        }
+        /* 用户取消时也必须回传 null，否则 WebView 会卡住，之后点击文件选择器全部失灵 */
+        filePathCallback.onReceiveValue(results);
+        filePathCallback = null;
     }
 
     private void toast(final String msg) {
@@ -200,6 +273,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openDownloads() {
             openDownloadsDir();
+        }
+
+        /** 壳版本号，供网页判断是否需要提示用户更新 App */
+        @JavascriptInterface
+        public int getVersionCode() {
+            return APP_VERSION;
         }
     }
 
