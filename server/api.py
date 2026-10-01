@@ -22,6 +22,15 @@ PORT = int(os.environ.get('PORT', '8791'))
 HOST = os.environ.get('HOST', '0.0.0.0')   # 生产建议 127.0.0.1 + nginx 反代
 DEV = os.environ.get('DEV', '1') == '1'      # 演示模式：验证码随响应返回（生产务必 0）
 CODE_TTL = 300                                # 验证码有效期（秒）
+
+# ---- 访问埋点 / 管理后台 ----
+# ADMIN_KEY 为空时管理接口一律拒绝（安全兜底：宁可不可用，不可裸奔）
+ADMIN_KEY = os.environ.get('ADMIN_KEY', '')
+TRACK_LIMIT = 240                             # 单 IP 每分钟上报上限
+# TRACK_RETENTION_DAYS = 0 表示不自动清理
+TRACK_RETENTION_DAYS = int(os.environ.get('TRACK_RETENTION_DAYS', '0'))
+print('[track] ADMIN_KEY=%s | 留存=%s天' % ('已配置' if ADMIN_KEY else '未配置（管理接口已关闭）',
+                                          TRACK_RETENTION_DAYS or '永久'), flush=True)
 TOKEN_TTL = 86400 * 30                        # 登录态 30 天
 RATE_PHONE = 60                               # 同号发码间隔（秒）
 RATE_IP_HOUR = 20                             # 同 IP 每小时发码上限
@@ -62,6 +71,27 @@ def rate_ok(ip, bucket, limit, window=60):
         for k in stale[:2000]:
             _rate_buckets.pop(k, None)
     return True
+
+# ============================================================
+# 访问埋点：真实 IP 提取 / 管理员鉴权
+# ============================================================
+def real_ip(headers, fallback):
+    """反代后的真实来源 IP。nginx 已传 X-Forwarded-For，优先取最左侧。"""
+    xff = headers.get('X-Forwarded-For') or ''
+    if xff:
+        first = xff.split(',')[0].strip()
+        if first:
+            return first[:45]
+    xr = (headers.get('X-Real-IP') or '').strip()
+    if xr:
+        return xr[:45]
+    return fallback or ''
+
+def admin_ok(key):
+    """管理后台口令校验（恒定时间比较，防空 ABA 侧信道）"""
+    if not ADMIN_KEY or not key:
+        return False
+    return hmac.compare_digest(str(key), ADMIN_KEY)
 
 # ============================================================
 # 琉璃AI 统一账号对接（外接 /opt/liuli-account 账号服务）
@@ -152,6 +182,14 @@ def init():
       CREATE TABLE IF NOT EXISTS sync_data(
         user_key TEXT PRIMARY KEY, favs TEXT, settings TEXT, updated_at INTEGER);
       CREATE TABLE IF NOT EXISTS ip_log(ip TEXT, ts INTEGER);
+      CREATE TABLE IF NOT EXISTS tool_usage(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER, ip TEXT, user_key TEXT, user_from TEXT,
+        tool_id TEXT, tool_name TEXT, action TEXT, dwell_ms INTEGER,
+        ua TEXT, page TEXT);
+      CREATE INDEX IF NOT EXISTS idx_usage_ts ON tool_usage(ts DESC);
+      CREATE INDEX IF NOT EXISTS idx_usage_tool ON tool_usage(tool_id);
+      CREATE INDEX IF NOT EXISTS idx_usage_ip ON tool_usage(ip);
     """)
     # 迁移：v0.6 增加 邮箱注册登录（老库自动升级）
     cols = [r[1] for r in conn.execute('PRAGMA table_info(users)').fetchall()]
@@ -709,6 +747,72 @@ class H(BaseHTTPRequestHandler):
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    def _track(self):
+        """记录访客行为：来源 IP / 登录账号 / 使用的工具 / 停留时长。
+        设计为「尽力而为」——埋点失败绝不影响用户正常使用。"""
+        ip = real_ip(self.headers, self.client_address[0])
+        if not rate_ok(ip, 'track', TRACK_LIMIT):
+            return self._json({'ok': False, 'error': 'rate_limited'}, 429)
+
+        b = self._body() or {}
+        tool_id   = str(b.get('tool', ''))[:40].strip()
+        tool_name = str(b.get('name', ''))[:60].strip()
+        action    = str(b.get('action', ''))[:16].strip()
+        if action not in ('open', 'dwell'):
+            action = 'open'
+        try:
+            dwell = int(b.get('dwell', 0) or 0)
+        except Exception:
+            dwell = 0
+        dwell = max(0, min(dwell, 3600000))
+
+        # 关联登录账号（未登录也记录，user_from 标记为 anon/local）
+        user_key, user_from = '', 'anon'
+        try:
+            uid = self._auth()
+        except Exception:
+            uid = None
+        if uid and uid.startswith('l:'):
+            tok = (self.headers.get('Authorization') or '')[7:].strip()
+            pl = verify_liuli_jwt(tok)
+            if not pl:
+                try:
+                    pl = liuli_fetch_user(tok) or {}
+                except Exception:
+                    pl = {}
+            user_key = str((pl or {}).get('email') or '')[:80]
+            user_from = 'liuli'
+        elif uid:
+            try:
+                conn = db()
+                u = conn.execute('SELECT phone, email FROM users WHERE id=?', (uid[2:],)).fetchone()
+                conn.close()
+                if u:
+                    user_key = str(u['email'] or u['phone'] or '')[:80]
+            except Exception:
+                pass
+            user_from = 'toolbox'
+        if not user_key:
+            s = str(b.get('user', ''))[:80].strip()
+            if s:
+                user_key, user_from = s, 'local'
+
+        ua   = (self.headers.get('User-Agent') or '')[:200]
+        page = str(b.get('page', ''))[:200].strip()
+        try:
+            conn = db()
+            conn.execute('INSERT INTO tool_usage(ts, ip, user_key, user_from, tool_id, tool_name,'
+                         ' action, dwell_ms, ua, page) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                         (now(), ip, user_key, user_from, tool_id, tool_name, action, dwell, ua, page))
+            if TRACK_RETENTION_DAYS > 0:
+                conn.execute('DELETE FROM tool_usage WHERE ts<?', (now() - TRACK_RETENTION_DAYS * 86400,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            print('[track] 写入失败：%s' % e, flush=True)
+            return self._json({'ok': False, 'error': 'track failed'}, 500)
+        return self._json({'ok': True})
+
     def _ocr(self):
         """图片 → 文字（服务器 tesseract，中文+英文）"""
         if not shutil.which('tesseract'):
@@ -872,6 +976,77 @@ class H(BaseHTTPRequestHandler):
             return self._proxy_video()
         if p == '/api/video/audio':
             return self._extract_audio()
+
+        # ================= 管理后台：工具使用记录 =================
+        if p in ('/api/admin/usage', '/api/admin/stats'):
+            q2 = parse_qs(urlparse(self.path).query)
+            if not admin_ok((q2.get('key') or [''])[0]):
+                return self._json({'ok': False, 'error': 'unauthorized'}, 401)
+
+            if p == '/api/admin/usage':
+                try:    limit = min(int((q2.get('limit') or ['50'])[0]), 200)
+                except Exception: limit = 50
+                try:    offset = max(int((q2.get('offset') or ['0'])[0]), 0)
+                except Exception: offset = 0
+                tool = (q2.get('tool') or [''])[0].strip()
+                act  = (q2.get('action') or [''])[0].strip()
+                kw   = (q2.get('q') or [''])[0].strip()
+                where, args = [], []
+                if tool:
+                    where.append('tool_id=?'); args.append(tool)
+                if act in ('open', 'dwell'):
+                    where.append('action=?'); args.append(act)
+                if kw:
+                    where.append('(ip LIKE ? OR user_key LIKE ? OR tool_name LIKE ?)')
+                    args += ['%' + kw + '%', '%' + kw + '%', '%' + kw + '%']
+                w = (' WHERE ' + ' AND '.join(where)) if where else ''
+                conn = db()
+                total = conn.execute('SELECT COUNT(*) c FROM tool_usage' + w, args).fetchone()['c']
+                rows = conn.execute('SELECT id, ts, ip, user_key, user_from, tool_id, tool_name,'
+                                    ' action, dwell_ms, page FROM tool_usage' + w +
+                                    ' ORDER BY ts DESC, id DESC LIMIT ? OFFSET ?',
+                                    args + [limit, offset]).fetchall()
+                conn.close()
+                return self._json({'ok': True, 'total': total, 'limit': limit, 'offset': offset,
+                                   'items': [dict(r) for r in rows]})
+
+            # ---- 汇总统计 ----
+            try:    days = min(int((q2.get('days') or ['7'])[0]), 90)
+            except Exception: days = 7
+            day0 = int(time.mktime(time.strptime(time.strftime('%Y-%m-%d'), '%Y-%m-%d')))
+            since = day0 - (days - 1) * 86400
+            conn = db()
+            total      = conn.execute('SELECT COUNT(*) c FROM tool_usage').fetchone()['c']
+            total_ip   = conn.execute('SELECT COUNT(DISTINCT ip) c FROM tool_usage').fetchone()['c']
+            today      = conn.execute('SELECT COUNT(*) c FROM tool_usage WHERE ts>=?', (day0,)).fetchone()['c']
+            today_ip   = conn.execute('SELECT COUNT(DISTINCT ip) c FROM tool_usage WHERE ts>=?', (day0,)).fetchone()['c']
+            tool_rank  = conn.execute('SELECT tool_id, tool_name, COUNT(*) c, COUNT(DISTINCT ip) u'
+                                      ' FROM tool_usage WHERE action="open" AND tool_id<>""'
+                                      ' GROUP BY tool_id ORDER BY c DESC LIMIT 20').fetchall()
+            ip_rank    = conn.execute('SELECT ip, COUNT(*) c, MAX(ts) lt, MAX(user_key) uk'
+                                      ' FROM tool_usage GROUP BY ip ORDER BY lt DESC LIMIT 30').fetchall()
+            daily      = conn.execute('SELECT (ts - ?) / 86400 d, COUNT(*) c, COUNT(DISTINCT ip) u'
+                                      ' FROM tool_usage WHERE ts>=? GROUP BY d ORDER BY d',
+                                      (since, since)).fetchall()
+            avg_dwell  = conn.execute('SELECT AVG(dwell_ms) a FROM tool_usage'
+                                      ' WHERE action="dwell" AND dwell_ms>0 AND dwell_ms<3600000').fetchone()['a']
+            logged     = conn.execute("SELECT COUNT(*) c FROM tool_usage"
+                                      " WHERE user_key<>'' AND user_key IS NOT NULL").fetchone()['c']
+            conn.close()
+            day_map = {}
+            for i in range(days):
+                day_map[day0 - (days - 1 - i) * 86400] = {'pv': 0, 'uv': 0}
+            for r in daily:
+                k = since + r['d'] * 86400
+                if k in day_map:
+                    day_map[k] = {'pv': r['c'], 'uv': r['u']}
+            return self._json({'ok': True,
+                'total': total, 'total_ip': total_ip, 'today': today, 'today_ip': today_ip,
+                'logged': logged, 'avg_dwell': int(avg_dwell or 0),
+                'tool_rank': [dict(r) for r in tool_rank],
+                'ip_rank': [dict(r) for r in ip_rank],
+                'daily': [{'ts': k, 'pv': v['pv'], 'uv': v['uv']} for k, v in sorted(day_map.items())]})
+
         if self._serve_static(p):
             return
         return self._json({'ok': False, 'error': 'not found'}, 404)
@@ -888,6 +1063,8 @@ class H(BaseHTTPRequestHandler):
             _lim = ('ocr', 20)
         if _lim and not rate_ok(ip, _lim[0], _lim[1]):
             return self._json({'ok': False, 'error': '请求过于频繁，请稍后再试'}, 429)
+        if p == '/api/track':
+            return self._track()
         if p == '/api/ocr':
             return self._ocr()
         if p.startswith('/api/auth/'):

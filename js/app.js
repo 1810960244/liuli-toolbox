@@ -406,11 +406,63 @@ function renderFav(){
   list.forEach(function(t){ g.appendChild(toolCard(t)); });
 }
 
+/* ===== 使用埋点：来源 IP / 账号 / 工具 / 停留时长 =====
+   原则：尽力而为，任何失败都静默，绝不影响正常使用。
+   IP 由服务端从 X-Forwarded-For 提取，前端不感知也不上报。      */
+var TB_SID = (function(){
+  try {
+    var s = sessionStorage.getItem('tb_sid');
+    if (!s){ s = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem('tb_sid', s); }
+    return s;
+  } catch(e){ return 'nosid'; }
+})();
+var _toolOpen = null;   /* { id, name, at, total } */
+
+function trackEvt(toolId, toolName, action, dwell){
+  try {
+    var base = (window.TBApi && TBApi.getBase) ? TBApi.getBase() : '';
+    if (!base) return;
+    var payload = { tool: toolId || '', name: toolName || '', action: action,
+                    dwell: dwell || 0, sid: TB_SID, page: (location.pathname || '/') };
+    var u = state.user;
+    if (u && u.email) payload.user = u.email;
+    var url = base + '/api/track';
+    var headers = { 'Content-Type': 'application/json' };
+    try {
+      var tok = (window.TBApi && TBApi.getToken) ? (TBApi.getToken() || '') : '';
+      if (tok) headers['Authorization'] = 'Bearer ' + tok;
+    } catch(e){}
+    /* keepalive 能在页面卸载时仍把请求发出去，并保留自定义头（登录态） */
+    try {
+      fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(payload),
+                   keepalive: true, credentials: 'same-origin' }).then(function(){}, function(){});
+    } catch(e){
+      try { navigator.sendBeacon(url, new Blob([JSON.stringify(payload)], { type: 'text/plain' })); } catch(e2){}
+    }
+  } catch(e){}
+}
+/* 把「已停留」的时间结算进累计值，但不立即上报 */
+function _dwellAccumulate(){
+  if (!_toolOpen) return;
+  _toolOpen.total += Date.now() - _toolOpen.at;
+  _toolOpen.at = Date.now();
+}
+/* 真正上报停留时长（切工具 / 关闭工具 / 离开页面时调用，每个工具每次会话只上报一次） */
+function _dwellEmit(){
+  if (!_toolOpen) return;
+  _dwellAccumulate();
+  trackEvt(_toolOpen.id, _toolOpen.name, 'dwell', Math.min(_toolOpen.total, 3600000));
+  _toolOpen = null;
+}
+
 /* ===== 工具详情 ===== */
 function openTool(id){
   var t = null;
   for (var i=0;i<TB_TOOLS.length;i++) if (TB_TOOLS[i].id === id){ t = TB_TOOLS[i]; break; }
   if (!t) return;
+  _dwellEmit();                                   /* 结算上一个工具的停留时长 */
+  _toolOpen = { id: t.id, name: t.name, at: Date.now(), total: 0 };
+  trackEvt(t.id, t.name, 'open', 0);
   state.tool = t;
   $('#tvTitle').textContent = t.name;
   updateStar();
@@ -424,11 +476,18 @@ function openTool(id){
   $('#toolview').classList.remove('hidden');
 }
 function closeTool(){
+  _dwellEmit();
   $('#toolview').classList.add('hidden');
   if (window.__tbCleanup) window.__tbCleanup.forEach(function(f){ try{ f(); }catch(e){} });
   window.__tbCleanup = [];
   state.tool = null;
 }
+/* 页面切到后台：暂停计时；页面卸载：结算上报 */
+document.addEventListener('visibilitychange', function(){
+  if (document.hidden) _dwellAccumulate();
+  else if (_toolOpen) _toolOpen.at = Date.now();
+});
+window.addEventListener('pagehide', function(){ _dwellEmit(); });
 
 /* ===== 标签页 ===== */
 function switchTab(t){

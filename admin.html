@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="night">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#080a10">
+<title>访问记录 · 百宝箱后台</title>
+<style>
+  :root{
+    --bg:#080a10; --bg2:#0b0e17; --card:#0e1220; --card2:#111627;
+    --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
+    --tx:#e8ecf6; --tx2:#a2adc6; --tx3:#6b7690;
+    --ac1:#5b8cff; --ac2:#8b5cf6; --ok:#34d399; --warn:#fbbf24; --bad:#fb7185;
+    --r:16px; --r2:22px;
+    --ease:cubic-bezier(.22,.61,.36,1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--tx)}
+  body{
+    font-family:"Inter","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+    min-height:100vh; overflow-x:hidden;
+  }
+  /* 背景光晕：两层极低透明度径向渐变，营造空间纵深 */
+  body::before,body::after{content:"";position:fixed;border-radius:50%;pointer-events:none;z-index:0;filter:blur(80px)}
+  body::before{width:620px;height:620px;top:-260px;left:-140px;background:radial-gradient(circle,rgba(91,140,255,.13),transparent 68%)}
+  body::after{width:520px;height:520px;bottom:-240px;right:-160px;background:radial-gradient(circle,rgba(139,92,246,.11),transparent 68%)}
+  .wrap{position:relative;z-index:1;max-width:1240px;margin:0 auto;padding:0 20px 72px}
+  @media(max-width:640px){.wrap{padding:0 14px 56px}}
+
+  /* ---------- 口令门 ---------- */
+  .gate{min-height:100vh;display:grid;place-items:center;padding:24px}
+  .gate-card{
+    width:100%;max-width:392px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r2);padding:34px 30px 28px;position:relative;overflow:hidden;
+    box-shadow:0 30px 70px -28px rgba(0,0,0,.85);
+    animation:rise .55s var(--ease) both;
+  }
+  .gate-card::before{
+    content:"";position:absolute;inset:0 0 auto;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(139,92,246,.75),transparent);
+  }
+  .gate-mark{
+    width:52px;height:52px;border-radius:15px;margin-bottom:20px;
+    background:linear-gradient(135deg,var(--ac1),var(--ac2));
+    display:grid;place-items:center;font-size:24px;
+    box-shadow:0 12px 30px -12px rgba(91,140,255,.65);
+  }
+  .gate h1{margin:0 0 6px;font-size:21px;font-weight:700;letter-spacing:-.02em}
+  .gate p{margin:0 0 22px;color:var(--tx3);font-size:13px}
+  .field{position:relative;margin-bottom:12px}
+  .field input{
+    width:100%;height:50px;padding:0 16px;border-radius:13px;
+    background:rgba(255,255,255,.035);border:1px solid var(--line);
+    color:var(--tx);font-size:14.5px;font-family:inherit;outline:none;
+    transition:border-color .25s var(--ease),background .25s var(--ease),box-shadow .25s var(--ease);
+  }
+  .field input::placeholder{color:var(--tx3)}
+  .field input:focus{
+    border-color:rgba(139,92,246,.55);background:rgba(139,92,246,.05);
+    box-shadow:0 0 0 4px rgba(139,92,246,.1);
+  }
+  .btn{
+    width:100%;height:50px;border:0;border-radius:13px;cursor:pointer;
+    background:linear-gradient(135deg,var(--ac1),var(--ac2));color:#fff;
+    font-size:14.5px;font-weight:600;font-family:inherit;letter-spacing:.02em;
+    transition:transform .2s var(--ease),box-shadow .25s var(--ease),opacity .2s;
+    box-shadow:0 12px 30px -14px rgba(91,140,255,.7);
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 18px 38px -14px rgba(91,140,255,.85)}
+  .btn:active{transform:translateY(0)}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;transform:none}
+  .gate-err{
+    margin-top:12px;font-size:12.5px;color:var(--bad);min-height:19px;
+    opacity:0;transform:translateY(-4px);transition:opacity .25s,transform .25s;
+  }
+  .gate-err.on{opacity:1;transform:translateY(0)}
+
+  /* ---------- 顶栏 ---------- */
+  .top{
+    position:sticky;top:0;z-index:30;margin:0 -20px 26px;padding:14px 20px;
+    background:rgba(8,10,16,.72);backdrop-filter:blur(18px) saturate(160%);
+    border-bottom:1px solid var(--line);
+  }
+  @media(max-width:640px){.top{margin:0 -14px 22px;padding:12px 14px}}
+  .top-in{max-width:1240px;margin:0 auto;display:flex;align-items:center;gap:14px}
+  .brand{display:flex;align-items:center;gap:11px;min-width:0}
+  .brand-ico{
+    width:36px;height:36px;border-radius:11px;flex:none;
+    background:linear-gradient(135deg,var(--ac1),var(--ac2));
+    display:grid;place-items:center;font-size:17px;
+    box-shadow:0 8px 20px -10px rgba(91,140,255,.7);
+  }
+  .brand-t{font-size:15px;font-weight:700;letter-spacing:-.01em;white-space:nowrap}
+  .brand-s{font-size:11.5px;color:var(--tx3);white-space:nowrap}
+  .live{
+    display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--tx2);
+    padding:5px 11px;border-radius:99px;background:rgba(52,211,153,.09);
+    border:1px solid rgba(52,211,153,.2);white-space:nowrap;
+  }
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:pulse 2.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,.5)}50%{opacity:.55;box-shadow:0 0 0 6px rgba(52,211,153,0)}}
+  .spacer{flex:1}
+  .ghost{
+    height:36px;padding:0 15px;border-radius:10px;cursor:pointer;
+    background:rgba(255,255,255,.04);border:1px solid var(--line);
+    color:var(--tx2);font-size:13px;font-family:inherit;white-space:nowrap;
+    transition:color .2s,border-color .2s,background .2s,transform .2s var(--ease);
+  }
+  .ghost:hover{color:var(--tx);border-color:var(--line2);background:rgba(255,255,255,.075)}
+  .ghost:active{transform:scale(.97)}
+  @media(max-width:520px){.brand-s,.live span.tx{display:none}}
+
+  /* ---------- 通用入场 ---------- */
+  @keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  .anim{animation:rise .6s var(--ease) both}
+
+  /* ---------- KPI ---------- */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+  @media(max-width:1050px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:660px){.kpis{grid-template-columns:repeat(2,1fr);gap:10px}}
+  .kpi{
+    background:linear-gradient(180deg,var(--card2),var(--card));
+    border:1px solid var(--line);border-radius:var(--r);padding:16px 16px 14px;
+    position:relative;overflow:hidden;
+    transition:transform .3s var(--ease),border-color .3s,box-shadow .3s;
+  }
+  .kpi:hover{transform:translateY(-3px);border-color:var(--line2);box-shadow:0 18px 40px -22px rgba(0,0,0,.9)}
+  .kpi::after{
+    content:"";position:absolute;left:16px;right:16px;bottom:-1px;height:1px;
+    background:linear-gradient(90deg,transparent,var(--kc,rgba(91,140,255,.6)),transparent);
+    opacity:0;transition:opacity .35s;
+  }
+  .kpi:hover::after{opacity:1}
+  .kpi-l{font-size:11.5px;color:var(--tx3);letter-spacing:.03em;display:flex;align-items:center;gap:6px}
+  .kpi-v{
+    font-size:27px;font-weight:700;letter-spacing:-.03em;margin-top:7px;
+    font-variant-numeric:tabular-nums;line-height:1.15;
+  }
+  .kpi-d{font-size:11.5px;color:var(--tx3);margin-top:3px;font-variant-numeric:tabular-nums}
+
+  /* ---------- 面板 ---------- */
+  .grid2{display:grid;grid-template-columns:1.45fr 1fr;gap:14px;margin-bottom:14px}
+  @media(max-width:940px){.grid2{grid-template-columns:1fr}}
+  .panel{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r2);
+    padding:20px 22px;position:relative;overflow:hidden;
+  }
+  .panel-h{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .panel-t{font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+  .panel-s{font-size:11.5px;color:var(--tx3)}
+
+  /* 趋势图 */
+  .chart{position:relative;height:172px;margin:0 -4px}
+  .chart svg{display:block;width:100%;height:100%;overflow:visible}
+  .bar{transition:opacity .25s var(--ease)}
+  .chart-hit{fill:transparent;cursor:pointer}
+  .tip{
+    position:absolute;pointer-events:none;opacity:0;transform:translate(-50%,-8px);
+    transition:opacity .18s,transform .18s;background:#161c2e;border:1px solid var(--line2);
+    border-radius:9px;padding:7px 11px;font-size:11.5px;white-space:nowrap;z-index:5;
+    box-shadow:0 12px 28px -12px rgba(0,0,0,.9);
+  }
+  .tip.on{opacity:1;transform:translate(-50%,-14px)}
+  .legend{display:flex;gap:16px;font-size:11.5px;color:var(--tx3);margin-top:12px}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+
+  /* 排行列表 */
+  .rank{display:flex;flex-direction:column;gap:3px}
+  .rank-row{
+    display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:11px;
+    padding:9px 10px;border-radius:11px;transition:background .22s;position:relative;overflow:hidden;
+  }
+  .rank-row:hover{background:rgba(255,255,255,.045)}
+  .rank-i{font-size:11.5px;color:var(--tx3);font-variant-numeric:tabular-nums;text-align:right}
+  .rank-n{font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rank-v{font-size:12.5px;color:var(--tx2);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rank-bar{
+    position:absolute;left:0;top:0;bottom:0;width:0;border-radius:11px;opacity:.13;
+    background:linear-gradient(90deg,var(--ac1),var(--ac2));
+    transition:width .9s var(--ease);z-index:-1;
+  }
+  .rank-sub{font-size:11px;color:var(--tx3);margin-top:1px;font-variant-numeric:tabular-nums}
+
+  /* ---------- 明细表 ---------- */
+  .tools-bar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
+  .tools-bar .grow{flex:1;min-width:170px}
+  .tools-bar input,.tools-bar select{
+    height:38px;padding:0 13px;border-radius:11px;background:rgba(255,255,255,.04);
+    border:1px solid var(--line);color:var(--tx);font-size:13px;font-family:inherit;outline:none;
+    transition:border-color .22s,background .22s;
+  }
+  .tools-bar input{min-width:0;width:100%}
+  .tools-bar input:focus,.tools-bar select:focus{border-color:rgba(139,92,246,.5);background:rgba(139,92,246,.05)}
+  .tools-bar select{cursor:pointer}
+  .tools-bar option{background:#141a2b}
+  .tbl-scroll{overflow-x:auto;margin:0 -22px;padding:0 22px}
+  @media(max-width:640px){.tbl-scroll{margin:0 -22px}}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px}
+  th{
+    text-align:left;font-weight:500;color:var(--tx3);font-size:11.5px;letter-spacing:.04em;
+    padding:0 12px 11px;border-bottom:1px solid var(--line);white-space:nowrap;
+  }
+  td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,.045);vertical-align:middle}
+  tbody tr{transition:background .2s}
+  tbody tr:hover{background:rgba(255,255,255,.038)}
+  .cell-ip{font-family:ui-monospace,"SF Mono",Consolas,monospace;font-size:12.5px;letter-spacing:-.01em}
+  .cell-time{color:var(--tx2);white-space:nowrap;font-variant-numeric:tabular-nums;font-size:12.5px}
+  .cell-user{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .cell-user.none{color:var(--tx3);font-style:italic}
+  .tag{
+    display:inline-block;padding:2.5px 9px;border-radius:7px;font-size:11px;
+    border:1px solid var(--line2);background:rgba(255,255,255,.05);color:var(--tx2);white-space:nowrap;
+  }
+  .tag.liuli{color:#c4b5fd;border-color:rgba(139,92,246,.35);background:rgba(139,92,246,.11)}
+  .tag.local{color:#94a3b8}
+  .tag.open{color:#93c5fd;border-color:rgba(91,140,255,.3);background:rgba(91,140,255,.1)}
+  .tag.dwell{color:#6ee7b7;border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.1)}
+  .pager{display:flex;align-items:center;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .pager-i{font-size:12px;color:var(--tx3);font-variant-numeric:tabular-nums}
+  .empty{padding:52px 20px;text-align:center;color:var(--tx3);font-size:13px}
+
+  /* 骨架 */
+  .sk{background:rgba(255,255,255,.05);border-radius:7px;position:relative;overflow:hidden}
+  .sk::after{
+    content:"";position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);
+    animation:sweep 1.35s infinite;
+  }
+  @keyframes sweep{to{transform:translateX(100%)}}
+
+  /* toast */
+  #toast{
+    position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);z-index:99;
+    background:#161c2e;border:1px solid var(--line2);border-radius:11px;
+    padding:10px 17px;font-size:13px;opacity:0;pointer-events:none;
+    transition:opacity .25s var(--ease),transform .25s var(--ease);
+    box-shadow:0 18px 40px -16px rgba(0,0,0,.9);
+  }
+  #toast.on{opacity:1;transform:translate(-50%,0)}
+
+  .foot{margin-top:26px;text-align:center;font-size:11.5px;color:var(--tx3);line-height:1.9}
+  .foot code{background:rgba(255,255,255,.05);padding:1.5px 6px;border-radius:5px;font-size:11px}
+  .hide{display:none!important}
+
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 口令门 ===== -->
+<section class="gate" id="gate">
+  <div class="gate-card">
+    <div class="gate-mark">🛡️</div>
+    <h1>访问记录后台</h1>
+    <p>输入管理口令以查看访客来源与使用明细</p>
+    <form id="gateForm" autocomplete="off">
+      <div class="field">
+        <input id="keyIn" type="password" placeholder="管理口令" autocomplete="current-password" spellcheck="false">
+      </div>
+      <button class="btn" id="btnIn" type="submit">进入后台</button>
+      <div class="gate-err" id="gateErr"></div>
+    </form>
+  </div>
+</section>
+
+<!-- ===== 主面板 ===== -->
+<div class="wrap hide" id="dash">
+  <div class="top">
+    <div class="top-in">
+      <div class="brand">
+        <div class="brand-ico">🛡️</div>
+        <div>
+          <div class="brand-t">访问记录</div>
+          <div class="brand-s">百宝箱 · 后台</div>
+        </div>
+      </div>
+      <div class="live"><span class="dot"></span><span class="tx">数据实时</span></div>
+      <div class="spacer"></div>
+      <button class="ghost" id="btnRefresh">刷新</button>
+      <button class="ghost" id="btnLogout" style="display:none">退出</button>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid2">
+    <div class="panel anim">
+      <div class="panel-h">
+        <div class="panel-t">访问趋势</div>
+        <div class="panel-s" id="trendSub">近 7 天</div>
+        <div class="spacer"></div>
+        <select id="days" style="height:32px;padding:0 10px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--tx2);font-size:12.5px;font-family:inherit;cursor:pointer">
+          <option value="7" selected>7 天</option>
+          <option value="14">14 天</option>
+          <option value="30">30 天</option>
+        </select>
+      </div>
+      <div class="chart" id="chart"><div class="tip" id="tip"></div></div>
+      <div class="legend">
+        <span><i style="background:linear-gradient(180deg,var(--ac1),rgba(91,140,255,.35))"></i>使用次数</span>
+        <span><i style="background:var(--ok)"></i>独立 IP</span>
+      </div>
+    </div>
+
+    <div class="panel anim">
+      <div class="panel-h"><div class="panel-t">工具排行</div><div class="panel-s">按打开次数</div></div>
+      <div class="rank" id="toolRank"></div>
+    </div>
+  </div>
+
+  <div class="panel anim">
+    <div class="panel-h"><div class="panel-t">使用明细</div><div class="panel-s" id="listCount">-</div></div>
+    <div class="tools-bar">
+      <div class="grow"><input id="q" type="search" placeholder="搜索 IP / 账号 / 工具名…" autocomplete="off"></div>
+      <select id="fTool"><option value="">全部工具</option></select>
+      <select id="fAct"><option value="">全部行为</option><option value="open">打开</option><option value="dwell">停留</option></select>
+      <select id="fSize"><option value="50">每页 50</option><option value="100">每页 100</option><option value="200">每页 200</option></select>
+    </div>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr>
+          <th style="width:150px">时间</th>
+          <th style="width:145px">来源 IP</th>
+          <th>登录账号</th>
+          <th style="width:170px">使用工具</th>
+          <th style="width:76px">行为</th>
+          <th style="width:96px">停留</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="empty hide" id="tblEmpty">没有匹配的记录</div>
+    <div class="pager">
+      <button class="ghost" id="pPrev">上一页</button>
+      <button class="ghost" id="pNext">下一页</button>
+      <span class="pager-i" id="pInfo">-</span>
+    </div>
+  </div>
+
+  <div class="foot">
+    IP 由服务端从 <code>X-Forwarded-For</code> 提取 · 时间按 Asia/Shanghai 显示<br>
+    数据仅存于本机 SQLite · 不外传第三方 · 受《隐私保护与免责声明》约束
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(function(){
+'use strict';
+var BASE = location.origin;
+var KEY = '';
+try { KEY = sessionStorage.getItem('tb_admin_key') || ''; } catch(e){}
+
+var $ = function(s){ return document.querySelector(s); };
+var el = function(t, c, x){ var n = document.createElement(t); if(c) n.className = c; if(x != null) n.textContent = x; return n; };
+
+function toast(m){
+  var t = $('#toast');
+  t.textContent = m; t.classList.add('on');
+  clearTimeout(t._t); t._t = setTimeout(function(){ t.classList.remove('on'); }, 2200);
+}
+function fmtTime(ts){
+  if(!ts) return '-';
+  return new Date(ts * 1000).toLocaleString('zh-CN', {
+    timeZone:'Asia/Shanghai', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+  });
+}
+function fmtAgo(ts){
+  if(!ts) return '-';
+  var d = Math.floor(Date.now()/1000 - ts);
+  if(d < 60) return d + ' 秒前';
+  if(d < 3600) return Math.floor(d/60) + ' 分钟前';
+  if(d < 86400) return Math.floor(d/3600) + ' 小时前';
+  return Math.floor(d/86400) + ' 天前';
+}
+function fmtDur(ms){
+  if(!ms) return '-';
+  if(ms < 1000) return ms + 'ms';
+  var s = ms/1000;
+  if(s < 60) return s.toFixed(1) + 's';
+  return Math.floor(s/60) + 'm' + Math.round(s%60) + 's';
+}
+function num(n){ return (n||0).toLocaleString('zh-CN'); }
+
+/* 数字滚动（支持后缀，避免动画结束后二次覆写导致跳数） */
+function countUp(node, to, suffix){
+  var from = 0, dur = 760, t0 = performance.now(), suf = suffix || '';
+  function step(t){
+    var k = Math.min((t - t0) / dur, 1);
+    var e = 1 - Math.pow(1 - k, 3);
+    node.textContent = Math.round(from + (to - from) * e).toLocaleString('zh-CN') + suf;
+    if(k < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ---------- 请求 ---------- */
+function api(path){
+  return fetch(BASE + path, { credentials:'same-origin' }).then(function(r){
+    if(r.status === 401){ onBadKey(); return null; }
+    return r.json();
+  });
+}
+function onBadKey(){
+  try { sessionStorage.removeItem('tb_admin_key'); } catch(e){}
+  KEY = '';
+  $('#dash').classList.add('hide');
+  $('#gate').classList.remove('hide');
+  $('#gateErr').textContent = '口令无效或已失效，请重新输入';
+  $('#gateErr').classList.add('on');
+  $('#keyIn').focus();
+}
+
+/* ---------- KPI ---------- */
+function renderKpis(s){
+  var box = $('#kpis');
+  box.innerHTML = '';
+  var items = [
+    { l:'总使用次数', v:s.total || 0, d:'累计记录 ' + num(s.total) + ' 条', c:'rgba(91,140,255,.6)' },
+    { l:'独立访客 IP', v:s.total_ip || 0, d:'去重后来源', c:'rgba(139,92,246,.6)' },
+    { l:'今日使用', v:s.today || 0, d:'今日独立 IP ' + num(s.today_ip), c:'rgba(52,211,153,.6)' },
+    { l:'登录占比', v:(s.total ? Math.round((s.logged||0)/s.total*100) : 0), suffix:'%',
+      d:num(s.logged) + ' 条来自登录用户', c:'rgba(251,191,36,.6)' },
+    { l:'平均停留', v:fmtDur(s.avg_dwell||0), raw:1, d:'单次工具页停留', c:'rgba(244,114,182,.6)' }
+  ];
+  items.forEach(function(it, i){
+    var c = el('div', 'kpi anim');
+    c.style.animationDelay = (i * 55) + 'ms';
+    c.style.setProperty('--kc', it.c);
+    c.appendChild(el('div', 'kpi-l', it.l));
+    var v = el('div', 'kpi-v');
+    if(it.raw){ v.textContent = it.v; } else { countUp(v, it.v, it.suffix); }
+    c.appendChild(v);
+    c.appendChild(el('div', 'kpi-d', it.d));
+    box.appendChild(c);
+  });
+}
+
+/* ---------- 趋势图 ---------- */
+function renderChart(daily){
+  var host = $('#chart'), tip = $('#tip');
+  var old = host.querySelector('svg');
+  if(old) old.remove();
+  if(!daily || !daily.length) return;
+  var W = host.clientWidth || 700, H = 172;
+  var padB = 22, padT = 10, bars = daily.length;
+  var max = 1;
+  daily.forEach(function(d){ if(d.pv > max) max = d.pv; if(d.uv > max) max = d.uv; });
+
+  var NS = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+  // 网格基线
+  [0, .5, 1].forEach(function(r){
+    var y = padT + (H - padT - padB) * (1 - r);
+    var ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', 0); ln.setAttribute('x2', W);
+    ln.setAttribute('y1', y); ln.setAttribute('y2', y);
+    ln.setAttribute('stroke', 'rgba(255,255,255,.06)');
+    ln.setAttribute('stroke-width', 1);
+    svg.appendChild(ln);
+  });
+
+  var slot = W / bars, bw = Math.max(4, Math.min(slot * 0.42, 26));
+  var area = H - padT - padB;
+  var uvPts = [];
+
+  daily.forEach(function(d, i){
+    var cx = slot * i + slot/2;
+    var bh = Math.max(d.pv ? 2 : 0, (d.pv / max) * area);
+    var x = cx - bw/2, y = padT + area - bh;
+
+    // 柱体
+    var g = document.createElementNS(NS, 'defs');
+    var gid = 'g' + i;
+    var lg = document.createElementNS(NS, 'linearGradient');
+    lg.setAttribute('id', gid); lg.setAttribute('x1','0'); lg.setAttribute('y1','0');
+    lg.setAttribute('x2','0'); lg.setAttribute('y2','1');
+    var s1 = document.createElementNS(NS,'stop'); s1.setAttribute('offset','0'); s1.setAttribute('stop-color','#5b8cff');
+    var s2 = document.createElementNS(NS,'stop'); s2.setAttribute('offset','1'); s2.setAttribute('stop-color','rgba(91,140,255,.28)');
+    lg.appendChild(s1); lg.appendChild(s2); g.appendChild(lg); svg.appendChild(g);
+
+    var r = document.createElementNS(NS, 'rect');
+    r.setAttribute('class','bar'); r.setAttribute('x', x); r.setAttribute('width', bw);
+    r.setAttribute('rx', Math.min(5, bw/2)); r.setAttribute('fill', 'url(#' + gid + ')');
+    r.setAttribute('y', padT + area); r.setAttribute('height', 0);
+    svg.appendChild(r);
+    // 入场动画
+    setTimeout(function(){
+      r.style.transition = 'y .8s cubic-bezier(.22,.61,.36,1), height .8s cubic-bezier(.22,.61,.36,1)';
+      r.setAttribute('y', y); r.setAttribute('height', bh);
+    }, 40 + i * 26);
+
+    // hover 热区
+    var hit = document.createElementNS(NS, 'rect');
+    hit.setAttribute('class','chart-hit'); hit.setAttribute('x', slot*i);
+    hit.setAttribute('y', 0); hit.setAttribute('width', slot); hit.setAttribute('height', H);
+    hit.addEventListener('mouseenter', function(){
+      r.setAttribute('opacity', '.72');
+      tip.innerHTML = fmtTime(d.ts) + ' · 使用 <b style="color:#93c5fd">' + d.pv + '</b> · IP <b style="color:#6ee7b7">' + d.uv + '</b>';
+      tip.style.left = Math.max(56, Math.min(W - 56, cx)) + 'px';
+      tip.style.top = (padT + area - bh - 6) + 'px';
+      tip.classList.add('on');
+    });
+    hit.addEventListener('mouseleave', function(){
+      r.removeAttribute('opacity');
+      tip.classList.remove('on');
+    });
+    svg.appendChild(hit);
+
+    uvPts.push([cx, padT + area - (d.uv / max) * area]);
+  });
+
+  // UV 折线
+  if(uvPts.length > 1){
+    var path = document.createElementNS(NS, 'path');
+    path.setAttribute('fill','none'); path.setAttribute('stroke','#34d399');
+    path.setAttribute('stroke-width','1.8'); path.setAttribute('stroke-linejoin','round');
+    path.setAttribute('stroke-linecap','round');
+    path.setAttribute('d', uvPts.map(function(p,i){ return (i?'L':'M') + p[0] + ' ' + p[1]; }).join(' '));
+    var len = 600;
+    path.style.strokeDasharray = len; path.style.strokeDashoffset = len;
+    path.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(.22,.61,.36,1) .2s';
+    svg.appendChild(path);
+    setTimeout(function(){ path.style.strokeDashoffset = 0; }, 60);
+
+    uvPts.forEach(function(p, i){
+      var c = document.createElementNS(NS,'circle');
+      c.setAttribute('cx', p[0]); c.setAttribute('cy', p[1]); c.setAttribute('r', 2.6);
+      c.setAttribute('fill','#080a10'); c.setAttribute('stroke','#34d399'); c.setAttribute('stroke-width','1.6');
+      c.style.opacity = 0; c.style.transition = 'opacity .4s ' + (600 + i*40) + 'ms';
+      svg.appendChild(c);
+      setTimeout(function(){ c.style.opacity = 1; }, 60);
+    });
+  }
+
+  // X 轴日期（首/中/末）
+  [0, Math.floor(bars/2), bars-1].forEach(function(i){
+    if(i < 0 || !daily[i] || (i === 0 && bars > 1 && false)) return;
+    var t = document.createElementNS(NS,'text');
+    t.setAttribute('x', Math.max(14, Math.min(W-14, slot*i + slot/2)));
+    t.setAttribute('y', H - 6); t.setAttribute('text-anchor','middle');
+    t.setAttribute('fill','#6b7690'); t.setAttribute('font-size','10.5');
+    t.textContent = new Date(daily[i].ts*1000).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai',month:'numeric',day:'numeric'});
+    svg.appendChild(t);
+  });
+
+  host.appendChild(svg);
+}
+
+/* ---------- 工具排行 ---------- */
+function renderToolRank(list){
+  var box = $('#toolRank');
+  box.innerHTML = '';
+  if(!list || !list.length){
+    box.appendChild(el('div','empty','暂无数据'));
+    return;
+  }
+  var max = list[0].c || 1;
+  list.forEach(function(it, i){
+    var row = el('div','rank-row');
+    row.appendChild(el('div','rank-i', String(i+1)));
+    var mid = el('div');
+    mid.appendChild(el('div','rank-n', it.tool_name || it.tool_id || '(未知)'));
+    mid.appendChild(el('div','rank-sub', it.u + ' 个 IP 用过'));
+    row.appendChild(mid);
+    row.appendChild(el('div','rank-v', num(it.c) + ' 次'));
+    var bar = el('div','rank-bar');
+    row.appendChild(bar);
+    box.appendChild(row);
+    setTimeout(function(){ bar.style.width = Math.max(3, (it.c/max)*100) + '%'; }, 60 + i*45);
+  });
+}
+
+/* ---------- 明细 ---------- */
+var S = { offset:0, limit:50, q:'', tool:'', action:'', total:0 };
+function renderRows(items, total){
+  S.total = total || 0;
+  var tb = $('#rows');
+  tb.innerHTML = '';
+  var none = $('#tblEmpty');
+  if(!items.length){
+    none.classList.remove('hide');
+    $('#listCount').textContent = '共 0 条';
+    $('#pInfo').textContent = '—';
+    return;
+  }
+  none.classList.add('hide');
+  $('#listCount').textContent = '共 ' + num(S.total) + ' 条';
+
+  items.forEach(function(r, i){
+    var tr = el('tr');
+    tr.style.opacity = 0;
+    tr.style.animation = 'fade .35s ' + (i*14) + 'ms forwards';
+    tr.appendChild(el('td','cell-time', fmtTime(r.ts)));
+
+    var ip = el('td','cell-ip', r.ip || '-');
+    tr.appendChild(ip);
+
+    var u = r.user_key ? r.user_key : '未登录';
+    var uc = el('td','cell-user' + (r.user_key ? '' : ' none'), u);
+    if(r.user_key) uc.title = r.user_key;
+    tr.appendChild(uc);
+
+    var toolTd = el('td');
+    var tw = el('span','', r.tool_name || r.tool_id || '-');
+    toolTd.appendChild(tw);
+    if(r.user_from && r.user_from !== 'anon'){
+      toolTd.appendChild(document.createTextNode(' '));
+      var tg = el('span','tag ' + r.user_from, r.user_from === 'liuli' ? '统一账号' : (r.user_from === 'local' ? '本地' : r.user_from));
+      toolTd.appendChild(tg);
+    }
+    tr.appendChild(toolTd);
+
+    var act = el('td');
+    act.appendChild(el('span','tag ' + (r.action||''), r.action === 'dwell' ? '停留' : '打开'));
+    tr.appendChild(act);
+
+    var dw = el('td','cell-time', r.action === 'dwell' ? fmtDur(r.dwell_ms) : '—');
+    tr.appendChild(dw);
+
+    tb.appendChild(tr);
+  });
+
+  var page = Math.floor(S.offset / S.limit) + 1;
+  var pages = Math.max(1, Math.ceil(S.total / S.limit));
+  $('#pInfo').textContent = '第 ' + page + ' / ' + pages + ' 页 · ' + num(items.length) + ' 条';
+  $('#pPrev').disabled = S.offset <= 0;
+  $('#pNext').disabled = (S.offset + items.length) >= S.total;
+}
+function loadList(){
+  var tb = $('#rows');
+  tb.innerHTML = '';
+  for(var i=0;i<6;i++){
+    var tr = el('tr');
+    for(var j=0;j<6;j++){
+      var td = el('td');
+      td.appendChild(el('div','sk', ''));
+      td.firstChild.style.height = '13px';
+      td.firstChild.style.width = (60 + Math.random()*70) + 'px';
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  var qs = '/api/admin/usage?key=' + encodeURIComponent(KEY) +
+           '&limit=' + S.limit + '&offset=' + S.offset +
+           (S.q ? '&q=' + encodeURIComponent(S.q) : '') +
+           (S.tool ? '&tool=' + encodeURIComponent(S.tool) : '') +
+           (S.action ? '&action=' + encodeURIComponent(S.action) : '');
+  api(qs).then(function(j){
+    if(!j) return;
+    if(!j.ok){ toast(j.error || '加载失败'); return; }
+    renderRows(j.items || [], j.total || 0);
+  });
+}
+function loadStats(){
+  return api('/api/admin/stats?key=' + encodeURIComponent(KEY) + '&days=' + $('#days').value)
+    .then(function(j){
+      if(!j) return;
+      if(!j.ok){ toast(j.error || '加载失败'); return; }
+      renderKpis(j);
+      $('#trendSub').textContent = '近 ' + $('#days').value + ' 天';
+      renderChart(j.daily || []);
+      renderToolRank(j.tool_rank || []);
+      // 工具下拉（首次）
+      var sel = $('#fTool');
+      if(sel.dataset.init !== '1' && j.tool_rank && j.tool_rank.length){
+        j.tool_rank.forEach(function(t){
+          if(!t.tool_id) return;
+          var o = document.createElement('option');
+          o.value = t.tool_id; o.textContent = t.tool_name || t.tool_id;
+          sel.appendChild(o);
+        });
+        sel.dataset.init = '1';
+      }
+    });
+}
+
+/* ---------- 事件 ---------- */
+$('#gateForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  var v = $('#keyIn').value.trim();
+  var err = $('#gateErr');
+  if(!v){ err.textContent = '请输入管理口令'; err.classList.add('on'); return; }
+  $('#btnIn').disabled = true;
+  $('#btnIn').textContent = '校验中…';
+  fetch(BASE + '/api/admin/stats?days=1&key=' + encodeURIComponent(v), { credentials:'same-origin' })
+    .then(function(r){
+      if(r.status === 401) return { ok:false, __401:true };
+      return r.json();
+    })
+    .then(function(j){
+      $('#btnIn').disabled = false;
+      $('#btnIn').textContent = '进入后台';
+      if(j && j.ok){
+        KEY = v;
+        try { sessionStorage.setItem('tb_admin_key', KEY); } catch(e2){}
+        err.classList.remove('on');
+        $('#gate').classList.add('hide');
+        $('#dash').classList.remove('hide');
+        $('#btnLogout').style.display = '';
+        boot();
+      } else {
+        err.textContent = '口令不正确';
+        err.classList.add('on');
+        $('#keyIn').select();
+      }
+    })
+    .catch(function(){
+      $('#btnIn').disabled = false;
+      $('#btnIn').textContent = '进入后台';
+      err.textContent = '连不上服务器，稍后再试';
+      err.classList.add('on');
+    });
+});
+$('#btnLogout').addEventListener('click', function(){
+  try { sessionStorage.removeItem('tb_admin_key'); } catch(e){}
+  KEY = '';
+  $('#dash').classList.add('hide');
+  $('#gate').classList.remove('hide');
+  $('#btnLogout').style.display = 'none';
+  $('#keyIn').value = '';
+});
+$('#btnRefresh').addEventListener('click', function(){ boot(); toast('已刷新'); });
+
+var _t = null;
+$('#q').addEventListener('input', function(){
+  clearTimeout(_t);
+  var v = this.value.trim();
+  _t = setTimeout(function(){ S.q = v; S.offset = 0; loadList(); }, 320);
+});
+$('#fTool').addEventListener('change', function(){ S.tool = this.value; S.offset = 0; loadList(); });
+$('#fAct').addEventListener('change', function(){ S.action = this.value; S.offset = 0; loadList(); });
+$('#fSize').addEventListener('change', function(){ S.limit = +this.value; S.offset = 0; loadList(); });
+$('#pPrev').addEventListener('click', function(){ if(S.offset > 0){ S.offset = Math.max(0, S.offset - S.limit); loadList(); } });
+$('#pNext').addEventListener('click', function(){ S.offset += S.limit; loadList(); });
+$('#days').addEventListener('change', function(){ loadStats(); });
+
+var _rz = null;
+window.addEventListener('resize', function(){
+  clearTimeout(_rz);
+  _rz = setTimeout(function(){ if(KEY) loadStats(); }, 260);
+});
+
+function boot(){ loadStats(); loadList(); }
+
+// 自动登录
+if(KEY){
+  fetch(BASE + '/api/admin/stats?days=1&key=' + encodeURIComponent(KEY), { credentials:'same-origin' })
+    .then(function(r){ return r.ok ? r.json() : { ok:false }; })
+    .then(function(j){
+      if(j && j.ok){
+        $('#gate').classList.add('hide');
+        $('#dash').classList.remove('hide');
+        $('#btnLogout').style.display = '';
+        boot();
+      } else {
+        onBadKey();
+      }
+    })
+    .catch(function(){ /* 离线时保留口令门 */ });
+}
+})();
+</script>
+</body>
+</html>

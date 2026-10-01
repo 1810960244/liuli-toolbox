@@ -58,7 +58,7 @@
           <input id="rgPass2" type="password" placeholder="确认密码" autocomplete="new-password">
         </div>
         <button id="rgGo" class="btn-primary btn-block">注 册</button>
-        <p class="hint">验证码会发送到你的邮箱（留意垃圾箱）</p>
+        <p class="hint">验证码 10 分钟内有效 · 重新获取后旧验证码自动失效</p>
       </div>
     </div>
     <div class="login-foot">
@@ -86,7 +86,7 @@
         <div class="grid" id="grid"></div>
         <div class="sec-head" id="soonTitle" style="margin-top:24px"><span class="sec-ico">🚧</span>即将上线</div>
         <div class="grid" id="upgrid"></div>
-        <div class="foot-note">本地处理 · 无需上传 · 秒级响应</div>
+        <div class="foot-note">本地处理 · 无需上传 · 秒级响应<br>工具仅供个人学习使用 · © 2026 琉璃AI</div>
       </div>
 
       <div id="tab-fav" class="tabpage hidden">
@@ -104,18 +104,9 @@
             <div class="me-sub" id="mePhone">-</div>
           </div>
         </div>
-        <div class="sec-title">云同步</div>
-        <div class="about-card" style="display:flex;flex-direction:column;gap:10px">
-          <div class="row" style="justify-content:space-between">
-            <span class="muted">连接状态</span><span id="syncStatus" style="font-size:12.5px">检测中…</span>
-          </div>
-          <div class="row">
-            <input class="inp" id="apiBase" placeholder="http://服务器地址:8791" style="height:42px;font-size:13px">
-            <button class="btn sm" id="apiSave" style="white-space:nowrap">连接</button>
-          </div>
-          <div class="row" style="justify-content:space-between">
-            <span class="muted">账号类型</span><span id="acctType" style="font-size:12.5px">本地演示</span>
-          </div>
+        <div class="sec-title">服务器</div>
+        <div class="about-card" style="display:flex;justify-content:space-between;align-items:center">
+          <span class="muted">连接状态</span><span id="syncStatus" style="font-size:12.5px">检测中…</span>
         </div>
         <div class="sec-title">主题</div>
         <div class="themes" id="themes"></div>
@@ -177,6 +168,6 @@
 <script src="js/tools5.js?v=4"></script>
 <script src="js/tools6.js?v=5"></script>
 <script src="js/api.js?v=4"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>
