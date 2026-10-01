@@ -30,6 +30,7 @@ public class MainActivity extends Activity {
 
     private static final String HOME = "https://toolbox.liulichat.cn/";
     private WebView web;
+    private long lastBack = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -128,12 +129,43 @@ public class MainActivity extends Activity {
                 toast("下载失败：" + e.getMessage());
             }
         }
+
+        @JavascriptInterface
+        public void openDownloads() {
+            try {
+                Intent it = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
+                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(it);
+            } catch (Exception e) {
+                toast("无法打开下载目录：" + e.getMessage());
+            }
+        }
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && web != null && web.canGoBack()) {
-            web.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK && web != null) {
+            if (web.canGoBack()) {
+                web.goBack();
+                return true;
+            }
+            // 先让网页处理（关闭工具页 / 返回首页），未消费则二次确认退出
+            web.evaluateJavascript(
+                "(function(){try{return window.__tbHandleBack ? String(window.__tbHandleBack()) : 'false';}catch(e){return 'false';}})()",
+                new android.webkit.ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String value) {
+                        if (!"\"true\"".equals(value) && !"true".equals(value)) {
+                            long now = System.currentTimeMillis();
+                            if (now - lastBack < 2000) {
+                                finish();
+                            } else {
+                                lastBack = now;
+                                toast("再按一次退出百宝箱");
+                            }
+                        }
+                    }
+                });
             return true;
         }
         return super.onKeyDown(keyCode, event);

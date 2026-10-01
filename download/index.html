@@ -9,7 +9,7 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:radial-gradient(120% 80% at 50% -5%,rgba(91,140,255,.25),transparent 62%),#0a0e16;color:#e9eef8;min-height:100vh;display:flex;justify-content:center}
   .wrap{max-width:760px;width:100%;padding:48px 20px 60px;text-align:center}
-  .orb{width:88px;height:88px;border-radius:30px;margin:0 auto;background:linear-gradient(135deg,#5b8cff,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:44px;box-shadow:0 18px 44px rgba(91,140,255,.35)}
+  .orb{width:88px;height:88px;border-radius:24px;margin:0 auto;display:block;box-shadow:0 18px 44px rgba(91,140,255,.35)}
   h1{margin:18px 0 4px;font-size:28px;letter-spacing:2px}
   .sub{color:#8fa0b8;font-size:13px;margin:0 0 30px}
   .card{background:#141b2b;border:1px solid rgba(255,255,255,.09);border-radius:18px;padding:22px;margin:14px 0;text-align:left}
@@ -35,6 +35,7 @@
     <a class="btn off" id="apkBtn" href="toolbox.apk" download>下载 APK</a>
     <div class="meta" id="apkMeta">正在检查版本…</div>
     <p style="margin-top:10px">首次安装时，请在系统提示中允许「安装未知应用」；需要 Android 10 及以上。</p>
+    <p>App 内保存的图片 / 视频 / 音频 / 压缩包，统一在系统「<b>下载</b>」目录（文件管理器 → Download），下载完成后应用内会弹出提示并可一键跳转查看。</p>
   </div>
 
   <div class="card">
@@ -57,12 +58,32 @@
     if (r.ok){
       btn.classList.remove('off');
       var size = r.headers.get('content-length');
-      meta.textContent = '版本 v1.0.0（云端构建）' + (size ? ' · 约 ' + (size / 1048576).toFixed(1) + ' MB' : '');
+      var sz = '';
+      if (size){
+        var n = parseInt(size, 10);
+        sz = ' · ' + (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB');
+      }
+      meta.textContent = '版本 v1.0.1（云端构建）' + sz;
     } else {
       meta.textContent = 'APK 正在云端构建中，稍后回来看看 👀';
     }
   }, function(){
     meta.textContent = 'APK 正在云端构建中，稍后回来看看 👀';
+  });
+})();
+</script>
+</body>
+</html>
+;
+    }
+  }, function(){
+    meta.textContent = 'APK 正在云端构建中，稍后回来看看 👀';
+  });
+})();
+</script>
+</body>
+</html>
+extContent = 'APK 正在云端构建中，稍后回来看看 👀';
   });
 })();
 </script>

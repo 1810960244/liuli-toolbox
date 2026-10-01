@@ -49,6 +49,36 @@ function downloadBlob(bl, name){
   } catch(e){ toast('若未自动下载，请长按图片保存'); }
 }
 
+/* 下载弹窗：显示保存位置，App 内可跳转系统「下载」目录 */
+function downloadDialog(name){
+  try {
+    var old = document.getElementById('dlDialog');
+    if (old) old.remove();
+    var hasOpen = window.AndroidBridge && window.AndroidBridge.openDownloads;
+    var ov = document.createElement('div');
+    ov.id = 'dlDialog';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);padding:24px';
+    ov.innerHTML = '<div style="width:100%;max-width:320px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;text-align:center">' +
+      '<div style="font-size:30px">📥</div>' +
+      '<div style="font-weight:700;margin:8px 0 4px">已开始下载</div>' +
+      '<div style="font-size:12.5px;color:var(--muted);word-break:break-all">' + String(name || '') + '</div>' +
+      '<div style="font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.7">保存位置：系统「下载」目录<br>（文件管理器 → Download）</div>' +
+      '<div style="display:flex;gap:10px;margin-top:16px">' +
+        (hasOpen ? '<button id="dlOpen" class="btn accent" style="flex:1">打开下载目录</button>' : '') +
+        '<button id="dlOk" class="btn" style="flex:1">知道了</button>' +
+      '</div></div>';
+    document.body.appendChild(ov);
+    var okBtn = ov.querySelector('#dlOk');
+    if (okBtn) okBtn.onclick = function(){ ov.remove(); };
+    var opBtn = ov.querySelector('#dlOpen');
+    if (opBtn) opBtn.onclick = function(){
+      try { window.AndroidBridge.openDownloads(); } catch(e){}
+      ov.remove();
+    };
+    ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+  } catch(e){ toast('已开始下载：' + name + '（系统「下载」目录）'); }
+}
+
 /* ===== 分类 & 工具清单 ===== */
 const TB_CATS = [
   { id:'all',  name:'全部' },

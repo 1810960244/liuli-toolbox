@@ -132,6 +132,22 @@ function initAuth(){
       });
     };
   }
+  var rgTimer = null;
+  function startCountdown(btn, sec){
+    if (rgTimer){ clearInterval(rgTimer); rgTimer = null; }
+    var left = sec;
+    btn.disabled = true;
+    btn.textContent = left + 's 后重试';
+    rgTimer = setInterval(function(){
+      left--;
+      if (left <= 0){
+        clearInterval(rgTimer); rgTimer = null;
+        btn.disabled = false; btn.textContent = '获取验证码';
+      } else {
+        btn.textContent = left + 's 后重试';
+      }
+    }, 1000);
+  }
   var rs = $('#rgSend');
   if (rs){
     rs.onclick = function(){
@@ -140,11 +156,15 @@ function initAuth(){
       if (!/^\S+@\S+\.\S+$/.test(email)){ toast('请先输入正确的邮箱'); return; }
       btn.disabled = true; btn.textContent = '发送中…';
       window.TBApi.auth('email-codes', { email: email, purpose: 'register' }).then(function(r){
-        btn.disabled = false; btn.textContent = '获取验证码';
         if (r && r.requestId){
           lastRequestId = r.requestId;
           toast('验证码已发送到邮箱，请查收（含垃圾箱）', 3000);
+          startCountdown(btn, 60);
+        } else if (r && String(r.error) === 'rate_limited'){
+          toast('发送太频繁，请稍后再试');
+          startCountdown(btn, 60);
         } else {
+          btn.disabled = false; btn.textContent = '获取验证码';
           toast(liuliErrMsg(r));
         }
       });
@@ -203,15 +223,13 @@ function isServerUser(){ return !!(state.user && (state.user.from === 'server' |
 function updateSyncStatus(txt){
   var el = document.getElementById('syncStatus');
   if (el) el.textContent = txt;
-  var at = document.getElementById('acctType');
-  if (at) at.textContent = state.user ? (state.user.from === 'liuli' ? '琉璃AI 账号' : (isServerUser() ? '云端账号' : '本地模式')) : '-';
 }
 function scheduleSync(delay){
   if (!isServerUser() || !state.serverOk || !window.TBApi) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(function(){
     window.TBApi.putSync(state.fav, { theme: state.theme }).then(function(r){
-      if (r && r.ok) updateSyncStatus('已同步 ' + new Date().toTimeString().slice(0, 5));
+      if (r && r.ok) updateSyncStatus('🟢 服务器在线');
     });
   }, delay || 1200);
 }
@@ -227,7 +245,7 @@ function pullSync(){
     LS.set('tb_fav', state.fav);
     if (r.settings && r.settings.theme && THEME_BG[r.settings.theme]) applyTheme(r.settings.theme);
     renderFav(); updateStar();
-    updateSyncStatus('已同步 ' + new Date().toTimeString().slice(0, 5));
+    updateSyncStatus('🟢 服务器在线');
     scheduleSync(600);
   });
 }
@@ -235,7 +253,7 @@ function probeServer(verbose){
   if (!window.TBApi) return;
   window.TBApi.health().then(function(r){
     state.serverOk = !!(r && r.ok);
-    updateSyncStatus(state.serverOk ? ('服务器已连接' + (r && r.dev ? ' · 调试模式' : '')) : '未连接 · 本地模式');
+    updateSyncStatus(state.serverOk ? '🟢 服务器在线' : '🔴 无法连接服务器');
     if (verbose) toast(state.serverOk ? '✓ 服务器连接成功' : '✗ 连接失败，已用本地模式');
     if (state.serverOk && isServerUser()) pullSync();
   });
@@ -264,8 +282,7 @@ function refreshMe(){
   $('#avatarMe').textContent = av[idx];
   var ab = document.getElementById('apiBase');
   if (ab && window.TBApi) ab.value = window.TBApi.getBase();
-  var who = state.user.from === 'liuli' ? '琉璃AI 账号' : (isServerUser() ? '云端账号' : '本地模式');
-  updateSyncStatus(state.serverOk ? ('已连接 · ' + who) : '未连接 · 本地模式');
+  updateSyncStatus(state.serverOk ? ('🟢 服务器在线' + (state.user.from === 'liuli' ? ' · 琉璃AI 账号' : '')) : '🔴 无法连接服务器');
 }
 
 /* ===== 工具列表 ===== */
@@ -470,6 +487,14 @@ function boot(){
     showLogin();
   }
   probeServer(false);
+
+  window.__tbHandleBack = function(){
+    try {
+      if (state.tool){ closeTool(); return true; }
+      if (state.tab !== 'home'){ switchTab('home'); return true; }
+    } catch(e){}
+    return false;
+  };
 
   window.__tb = {
     state: function(){

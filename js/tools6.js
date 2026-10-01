@@ -40,7 +40,7 @@ function tVideoAudio(root){
       if (window.AndroidBridge && window.AndroidBridge.downloadUrl){
         window.AndroidBridge.downloadUrl(url, aname);
         btn.disabled = false; btn.textContent = '解析并提取音频';
-        out.innerHTML = '<p class="hint" style="margin-top:12px">已交给系统下载：' + escH(aname) + '（完成后见系统通知栏）</p>';
+        downloadDialog(aname);
         return;
       }
       btn.textContent = '提取中…（视视频大小，稍等）';

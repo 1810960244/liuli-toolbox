@@ -20,6 +20,9 @@ jobs:
 
       - name: Build APK
         working-directory: android
+        env:
+          VERSION_CODE: '2'
+          VERSION_NAME: '1.0.1'
         run: |
           chmod +x build.sh
           bash build.sh

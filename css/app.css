@@ -19,11 +19,12 @@ input,textarea{font-family:inherit;user-select:text;-webkit-user-select:text}
 
 /* ===== 登录页 ===== */
 #login{align-items:center;justify-content:center;padding:24px;text-align:center;background:radial-gradient(120% 80% at 50% -5%,var(--glow),transparent 62%),var(--bg)}
-.login-orb{width:88px;height:88px;border-radius:30px;background:var(--grad);background-size:180% 180%;animation:gradmove 6s ease infinite;display:flex;align-items:center;justify-content:center;font-size:44px;box-shadow:0 18px 44px var(--glow)}
+.login-orb{width:88px;height:88px;border-radius:24px;display:block;box-shadow:0 18px 44px var(--glow)}
 @keyframes gradmove{0%{background-position:0% 40%}50%{background-position:100% 60%}100%{background-position:0% 40%}}
 .login-title{font-size:30px;margin:20px 0 4px;letter-spacing:3px;font-weight:800}
 .login-sub{color:var(--muted);font-size:13px;margin:0 0 24px;letter-spacing:1px}
-.login-card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+.login-card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--border);border-radius:22px;padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px;min-height:420px}
+#paneLogin,#paneRegister{display:flex;flex-direction:column;gap:12px}
 .field{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:0 12px;height:52px;transition:border-color .15s}
 .field:focus-within{border-color:var(--accent)}
 .field input{flex:1;border:0;background:transparent;color:var(--text);font-size:15px;outline:none;min-width:0}

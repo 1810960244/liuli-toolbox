@@ -38,7 +38,7 @@ function tVideoDl(root){
       var vname = String(current.title || current.platform || 'video').slice(0, 30) + '.mp4';
       if (window.AndroidBridge && window.AndroidBridge.downloadUrl){
         window.AndroidBridge.downloadUrl(url, vname);
-        toast('已交给系统下载：' + vname);
+        downloadDialog(vname);
         return;
       }
       btn.disabled = true; btn.textContent = '下载中…（看视频大小，稍等）';
