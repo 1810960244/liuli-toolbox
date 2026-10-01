@@ -16,6 +16,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.util.Base64;
 import android.view.KeyEvent;
 import android.webkit.DownloadListener;
@@ -43,7 +44,7 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://toolbox.liulichat.cn/";
     /* 必须与 .github/workflows/build-apk.yml 的 VERSION_CODE 保持一致，
        网页靠它判断用户装的是不是旧壳 —— 壳太旧时文件选择等能力不可用 */
-    private static final int APP_VERSION = 4;
+    private static final int APP_VERSION = 5;
     private static final int REQ_FILE = 1001;
     private static final int REQ_PERM = 1002;
     private WebView web;
@@ -52,6 +53,8 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback;
     /* 下载 id → 文件名，用于下载完成后弹窗告知保存位置 */
     private final Map<Long, String> dlNames = new HashMap<>();
+    /* 属于「应用更新」的下载 id，完成后要拉起安装器而不是提示保存路径 */
+    private final java.util.Set<Long> installIds = new java.util.HashSet<>();
     private BroadcastReceiver dlReceiver;
 
     @Override
@@ -193,6 +196,10 @@ public class MainActivity extends Activity {
                 @Override
                 public void onReceive(Context ctx, Intent intent) {
                     long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    if (installIds.remove(id)) {      /* 更新包：装它 */
+                        installApk(id);
+                        return;
+                    }
                     String name = dlNames.remove(id);
                     if (name == null) return;
                     showSaveDialog(name);
@@ -221,6 +228,27 @@ public class MainActivity extends Activity {
             startActivity(it);
         } catch (Exception e) {
             toast("无法打开下载目录：" + e.getMessage());
+        }
+    }
+
+    /** 用系统安装器安装已下载的更新包。
+        注意：Android 7+ 禁止跨应用传 file:// URI。本项目是 aapt2 手写构建、
+        没有 AndroidX，所以不走 FileProvider，改用 DownloadManager 自带的
+        content:// URI（由系统 DownloadProvider 提供），无需额外依赖。 */
+    private void installApk(long downloadId) {
+        try {
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            Uri uri = dm.getUriForDownloadedFile(downloadId);
+            if (uri == null) {
+                toast("安装包读取失败，请到「下载」目录手动安装");
+                return;
+            }
+            Intent it = new Intent(Intent.ACTION_VIEW);
+            it.setDataAndType(uri, "application/vnd.android.package-archive");
+            it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(it);
+        } catch (Exception e) {
+            toast("无法拉起安装界面：" + e.getMessage());
         }
     }
 
@@ -298,6 +326,34 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public int getVersionCode() {
             return APP_VERSION;
+        }
+
+        /** 下载更新包并在完成后拉起系统安装界面。
+            Android 8+ 需要「安装未知应用」授权，未授权时先引导用户去开启。
+            系统不允许应用静默安装自己，最后一步必须由用户点「安装」。 */
+        @JavascriptInterface
+        public void downloadAndInstall(String url, String name) {
+            try {
+                if (Build.VERSION.SDK_INT >= 26 && !getPackageManager().canRequestPackageInstalls()) {
+                    toast("请先允许「安装未知应用」，再回来点一次更新");
+                    Intent i = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                            Uri.parse("package:" + getPackageName()));
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(i);
+                    return;
+                }
+                DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
+                r.setTitle("百宝箱更新");
+                r.setDescription(name);
+                r.setMimeType("application/vnd.android.package-archive");
+                r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+                long id = ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
+                installIds.add(id);
+                toast("正在下载更新包，完成后会弹出安装界面");
+            } catch (Exception e) {
+                toast("更新失败：" + e.getMessage());
+            }
         }
     }
 

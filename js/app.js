@@ -168,20 +168,136 @@ function liuliErrMsg(r){
   var code = String(r.error || r.code || '');
   return m[code] || (r.message || r.error || ('操作失败' + (r.__status ? '（' + r.__status + '）' : '')));
 }
-/* App 壳版本检查：只装在 App 内才检查（靠 AndroidBridge 判定）。
-   壳太旧时文件选择等原生能力缺失，网页再新也救不回来，必须提示更新。 */
-function checkAppUpdate(){
+/* ===== 版本检查与更新 =====
+   策略（用户 2026-10-02 确认）：平时【手动】检查，不打扰；
+   后台在 app-version.json 里置 force=true 即为强推版本。 */
+var verInfo = null;
+var verChecking = false;
+
+function shellVersion(){
+  /* 有 AndroidBridge 才是 App 内；网页端返回 0 */
+  try {
+    var B = window.AndroidBridge;
+    if (B && typeof B.getVersionCode === 'function') return B.getVersionCode() || 0;
+  } catch(e){}
+  return 0;
+}
+
+function renderVersionUI(){
+  var cur = shellVersion();
+  var el = $('#verCurrent');
+  if (el) el.textContent = cur > 0 ? ('build ' + cur) : '网页版';
+  return cur;
+}
+
+function setVerState(txt, cls){
+  var el = $('#verState');
+  if (!el) return;
+  el.textContent = txt;
+  el.className = 'ver-state' + (cls ? ' ' + cls : '');
+}
+
+function checkUpdate(manual){
+  if (verChecking) return;
+  verChecking = true;
+  setVerState('正在检查…');
+  fetch('app-version.json?_=' + Date.now(), { cache: 'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      verChecking = false;
+      if (!j || !j.code){ setVerState('检查失败：云端数据异常', 'err'); return; }
+      verInfo = j;
+      var cur = renderVersionUI();
+      if (cur <= 0){
+        setVerState('当前是网页版，始终为最新；App 内可检查更新');
+        if (manual) toast('网页版始终最新，无需更新');
+        return;
+      }
+      if (cur >= j.code){
+        setVerState('已是最新版本 v' + j.name);
+        if (manual) toast('已是最新版本 v' + j.name);
+        return;
+      }
+      setVerState('发现新版本 v' + j.name + (j.force ? '（需更新后使用）' : ''), 'has');
+      showUpdateModal(j, cur);
+    }, function(){
+      verChecking = false;
+      setVerState('检查失败：网络不可用', 'err');
+      if (manual) toast('网络异常，稍后重试');
+    });
+}
+
+function showUpdateModal(j, cur){
+  var m = $('#updateModal');
+  if (!m) return;
+  $('#umTitle').textContent = j.force ? '更新后才能继续使用' : '发现新版本';
+  $('#umSub').textContent = 'v' + j.name + '　当前 build ' + cur;
+  $('#umIco').textContent = j.force ? '!' : '↑';
+  var ul = $('#umLog');
+  ul.innerHTML = '';
+  var items = (j.changelog && j.changelog.length) ? j.changelog : [j.note || '修复问题并优化体验'];
+  items.forEach(function(t){
+    var li = document.createElement('li');
+    li.textContent = t;
+    ul.appendChild(li);
+  });
+  var bits = [];
+  if (j.released) bits.push('发布 ' + j.released);
+  if (j.size) bits.push('安装包 ' + (j.size / 1048576).toFixed(1) + ' MB');
+  bits.push('更新后数据不丢失');
+  $('#umMeta').textContent = bits.join('　·　');
+  $('#umLater').textContent = j.force ? '稍后再说' : '稍后再说';
+  m.classList.toggle('force', !!j.force);
+  m.classList.remove('hidden');
+  var card = m.querySelector('.modal-card');
+  if (card) Motion.reveal(card);
+  if (j.force) toast('此版本为必须更新版本', 3200);
+}
+
+function closeUpdateModal(){
+  var m = $('#updateModal');
+  if (!m) return;
+  if (verInfo && verInfo.force) return;   /* 强推版本不给关 */
+  m.classList.add('hidden');
+}
+
+function doUpdate(){
+  var j = verInfo;
+  if (!j) return;
+  var rel = j.file || 'download/toolbox.apk';
+  var abs = /^https?:/i.test(rel) ? rel : (location.origin + '/' + rel.replace(/^\//, ''));
   var B = window.AndroidBridge;
-  if (!B || typeof B.getVersionCode !== 'function') return;
-  var cur = 0;
-  try { cur = B.getVersionCode(); } catch(e){ return; }
-  fetch('app-version.json', { cache: 'no-store' }).then(function(r){
-    return r.json();
-  }).then(function(j){
-    if (!j || !j.code || cur >= j.code) return;
-    toast('当前 App 版本较旧，v' + j.name + ' 已发布：' + (j.note || '') +
-          '。请在「我的 → 获取」下载更新', 8000);
-  }).catch(function(){});
+  if (B && typeof B.downloadAndInstall === 'function'){
+    var btn = $('#umNow');
+    if (btn){ btn.disabled = true; btn.textContent = '下载中…'; }
+    setVerState('正在下载 v' + j.name + ' …', 'has');
+    try {
+      B.downloadAndInstall(abs, 'toolbox-' + j.name + '.apk');
+      closeUpdateModal();
+      toast('开始下载，完成后会弹出安装界面', 4000);
+    } catch(e){
+      toast('拉起安装失败：' + e.message);
+    }
+    setTimeout(function(){
+      if (btn){ btn.disabled = false; btn.textContent = '立即更新'; }
+    }, 4000);
+    return;
+  }
+  /* 网页端没有安装能力，转到下载页 */
+  toast('网页版请到下载页获取 App');
+  location.href = 'download/';
+}
+
+function initUpdateUI(){
+  renderVersionUI();
+  var b = $('#btnCheckVer');
+  if (b) b.onclick = function(){ checkUpdate(true); };
+  var later = $('#umLater');
+  if (later) later.onclick = closeUpdateModal;
+  var mask = $('#umMask');
+  if (mask) mask.onclick = function(){ if (!verInfo || !verInfo.force) closeUpdateModal(); };
+  var now = $('#umNow');
+  if (now) now.onclick = doUpdate;
 }
 
 /* 登录成功后的地区 / IP / 时间提示。
@@ -632,7 +748,7 @@ function switchTab(t){
     b.classList.toggle('active', b.dataset.tab === t);
   });
   if (t === 'fav') renderFav();
-  if (t === 'me') refreshMe();
+  if (t === 'me'){ refreshMe(); renderVersionUI(); }
   $('#content').scrollTop = 0;
   Motion.pageIn($('#tab-' + t));
 }
@@ -666,7 +782,7 @@ function boot(){
   if (Motion.ok) document.documentElement.classList.add('js-ready');
   applyTheme(state.theme);
   initAuth();
-  checkAppUpdate();
+  initUpdateUI();
   $('#tabbar').addEventListener('click', function(e){
     var b = e.target.closest('.tab'); if (!b) return;
     switchTab(b.dataset.tab);

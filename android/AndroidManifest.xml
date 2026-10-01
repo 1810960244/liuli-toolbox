@@ -3,6 +3,8 @@
     package="cn.liulichat.toolbox">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 应用内更新需要：拉起系统安装器（Android 8+ 还需用户授权「安装未知应用」） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- 网页里 <input type="file"> 选图/选文件需要；Android 13+ 走分区存储不再需要 -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />

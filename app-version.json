@@ -2,5 +2,15 @@
   "code": 4,
   "name": "1.0.3",
   "file": "download/toolbox.apk",
-  "note": "修复 Android 13/14 启动闪退，并恢复 App 内 12 个图片/文件类工具（去水印、压缩、拼接、切图、打包、OCR 等）"
+  "size": 29503,
+  "released": "2026-10-02",
+  "force": false,
+  "email": "hello@example.com",
+  "note": "修复 Android 13/14 启动闪退，并恢复 App 内文件选择能力",
+  "changelog": [
+    "修复在 Android 13 / 14 上启动闪退的问题",
+    "恢复 App 内文件选择：去水印、压缩、加水印、转 PDF、拼接、切图、打包、OCR 等 12 个工具",
+    "新增下载完成提示，可直接查看保存路径",
+    "登录后可查看当前地区与 IP 信息"
+  ]
 }

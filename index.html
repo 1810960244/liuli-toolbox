@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>百宝箱 · 全能工具箱</title>
-<link rel="stylesheet" href="css/app.css?v=7">
+<link rel="stylesheet" href="css/app.css?v=8">
 </head>
 <body>
 <div id="app">
@@ -81,8 +81,8 @@
       </div>
     </div>
     <div class="login-foot">
-      <p style="margin:0">琉璃AI 出品 · <a id="guestMode" style="color:inherit;text-decoration:underline;cursor:pointer">以本地模式体验</a> · <a href="download/" style="color:inherit;text-decoration:underline">下载 App</a> · <a href="disclaimer/" style="color:inherit;text-decoration:underline">免责声明</a></p>
-      <p style="margin:5px 0 0">© 2026 琉璃AI · liulichat.cn · 湘ICP备2026041818号-1</p>
+      <p style="margin:0">琉璃 出品 · <a id="guestMode" style="color:inherit;text-decoration:underline;cursor:pointer">以本地模式体验</a> · <a href="download/" style="color:inherit;text-decoration:underline">下载 App</a> · <a href="disclaimer/" style="color:inherit;text-decoration:underline">免责声明</a></p>
+      <p style="margin:5px 0 0">© 2026 琉璃 · hello@example.com · 湘ICP备2026041818号-1</p>
     </div>
   </section>
 
@@ -105,7 +105,7 @@
         <div class="grid" id="grid"></div>
         <div class="sec-head" id="soonTitle" style="margin-top:24px"><span class="sec-ico">🚧</span>即将上线</div>
         <div class="grid" id="upgrid"></div>
-        <div class="foot-note">本地处理 · 无需上传 · 秒级响应<br>工具仅供个人学习使用 · © 2026 琉璃AI</div>
+        <div class="foot-note">本地处理 · 无需上传 · 秒级响应<br>工具仅供个人学习使用 · © 2026 琉璃 · hello@example.com</div>
       </div>
 
       <div id="tab-fav" class="tabpage hidden">
@@ -137,12 +137,25 @@
           <span style="font-size:12.5px">📱 安卓版 App · 文件存到系统下载目录</span>
           <a class="btn sm" href="download/" style="height:34px;text-decoration:none;white-space:nowrap">获取</a>
         </div>
+        <div class="sec-title">版本</div>
+        <div class="about-card">
+          <div class="ver-row">
+            <span class="ver-cur">当前版本 <b id="verCurrent">—</b></span>
+            <button class="btn sm" id="btnCheckVer">检查更新</button>
+          </div>
+          <div class="ver-state" id="verState">点击右侧按钮检查有没有新版本</div>
+        </div>
+        <div class="sec-title">反馈</div>
+        <div class="about-card">
+          <p>遇到问题、想提建议，或需要协助，直接发邮件：</p>
+          <p><a class="mail-link" href="mailto:hello@example.com">hello@example.com</a></p>
+        </div>
         <div class="sec-title">关于</div>
         <div class="about-card">
           <p>百宝箱 v0.6 · 38 个工具 · 桌面/手机自适应</p>
           <p>工具本地运行；数据只存本机与你的服务器，不外传第三方。</p>
           <p>所有工具仅供个人学习研究使用，请勿用于商业用途；使用下载类工具时请尊重原作者版权。</p>
-          <p>© 2026 琉璃AI · liulichat.cn · 湘ICP备2026041818号-1（版权归琉璃AI所有，侵权必究）</p>
+          <p>© 2026 琉璃 · hello@example.com · 湘ICP备2026041818号-1</p>
           <p><a href="disclaimer/" style="color:var(--accent)">隐私保护与免责声明</a></p>
         </div>
         <button id="logout" class="btn-danger btn-block">退出登录</button>
@@ -175,6 +188,29 @@
     <div class="tv-body" id="tvBody"></div>
   </section>
 
+  <!-- 版本更新弹窗（强制更新时不可关闭）-->
+  <div id="updateModal" class="modal hidden">
+    <div class="modal-mask" id="umMask"></div>
+    <div class="modal-card">
+      <div class="um-head">
+        <span class="um-ico" id="umIco">↑</span>
+        <div>
+          <div class="um-title" id="umTitle">发现新版本</div>
+          <div class="um-sub" id="umSub">—</div>
+        </div>
+      </div>
+      <div class="um-sec">更新内容</div>
+      <ul class="um-log" id="umLog"></ul>
+      <div class="um-meta" id="umMeta"></div>
+      <div class="um-actions">
+        <button class="btn" id="umLater">稍后再说</button>
+        <button class="btn accent" id="umNow">立即更新</button>
+      </div>
+      <div class="um-foot">更新遇到问题？发邮件到
+        <a href="mailto:hello@example.com">hello@example.com</a></div>
+    </div>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
 </div>
 <script src="libs/qr-styling.js?v=1"></script>
@@ -192,6 +228,6 @@
 <script src="js/tools6.js?v=5"></script>
 <script src="libs/gsap.min.js?v=2"></script>
 <script src="js/api.js?v=5"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>
