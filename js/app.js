@@ -30,10 +30,92 @@ var state = {
   serverOk: false
 };
 
+/* ===== 动效编排层（GSAP）
+   三条铁律：
+   1. GSAP 缺失 / 用户开启「减少动态效果」时全部降级为瞬时显示，绝不挡内容
+   2. CSS 里 .js-ready 才隐藏初始态，且这个 class 只在 GSAP 真正可用时添加
+   3. 任何动画失败都不阻塞后续逻辑                                        */
+var Motion = {
+  get ok(){
+    return !!(window.gsap) && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  },
+  show: function(ns){
+    ns.forEach(function(n){ try{ n.style.visibility = 'visible'; n.style.opacity = 1; }catch(e){} });
+  },
+  list: function(sel){
+    return Array.prototype.slice.call(document.querySelectorAll(sel));
+  },
+  /* 网格 / 列表序列入场 */
+  staggerIn: function(ns){
+    if(!ns || !ns.length) return;
+    if(!this.ok){ this.show(ns); return; }
+    try{
+      window.gsap.set(ns, { visibility:'visible', opacity:0, y:16, scale:.97 });
+      window.gsap.to(ns, {
+        opacity:1, y:0, scale:1, duration:.52, ease:'power3.out',
+        stagger:{ each:.022, from:'start' }, overwrite:'auto',
+        clearProps:'scale'
+      });
+    }catch(e){ this.show(ns); }
+  },
+  /* 工具详情页进入 */
+  toolIn: function(el){
+    if(!this.ok || !el) return;
+    try{
+      var body = el.querySelector('.tv-body');
+      window.gsap.set(el, { visibility:'visible' });
+      window.gsap.fromTo(el, { x:'5%', opacity:0 },
+        { x:0, opacity:1, duration:.34, ease:'power3.out' });
+      if(body) window.gsap.fromTo(body, { y:12, opacity:0 },
+        { y:0, opacity:1, duration:.44, ease:'power3.out', delay:.05, clearProps:'transform' });
+    }catch(e){}
+  },
+  /* 工具详情页退出：动画结束后再真正隐藏 */
+  toolOut: function(el, done){
+    if(!el){ if(done) done(); return; }
+    if(!this.ok){ el.classList.add('hidden'); if(done) done(); return; }
+    try{
+      window.gsap.to(el, { x:'4%', opacity:0, duration:.2, ease:'power2.in',
+        onComplete:function(){
+          el.classList.add('hidden');
+          window.gsap.set(el, { x:0, opacity:1 });
+          if(done) done();
+        }});
+    }catch(e){ el.classList.add('hidden'); if(done) done(); }
+  },
+  /* 标签页切换 */
+  pageIn: function(el){
+    if(!this.ok || !el) return;
+    try{ window.gsap.fromTo(el, { y:10, opacity:0 }, { y:0, opacity:1, duration:.32, ease:'power2.out', clearProps:'transform' }); }
+    catch(e){}
+  },
+  /* 按压回馈：星标 / 头像这类单点元素 */
+  pop: function(el, peak){
+    if(!this.ok || !el) return;
+    try{
+      window.gsap.fromTo(el, { scale:1 },
+        { scale: peak || 1.32, duration:.16, ease:'back.out(3)', yoyo:true, repeat:1, overwrite:'auto' });
+    }catch(e){}
+  },
+  toastIn: function(el){
+    if(!this.ok || !el) return;
+    try{ window.gsap.fromTo(el, { y:-14, opacity:0, scale:.94 },
+      { y:0, opacity:1, scale:1, duration:.36, ease:'back.out(2)', clearProps:'transform' }); }
+    catch(e){}
+  },
+  /* 登录页 → 主界面 */
+  reveal: function(el){
+    if(!this.ok || !el) return;
+    try{ window.gsap.fromTo(el, { opacity:0, y:14 }, { opacity:1, y:0, duration:.5, ease:'power3.out', clearProps:'transform' }); }
+    catch(e){}
+  }
+};
+
 function toast(msg, ms){
   var t = $('#toast');
   t.textContent = msg;
   t.classList.remove('hidden');
+  Motion.toastIn(t);
   clearTimeout(toast._t);
   toast._t = setTimeout(function(){ t.classList.add('hidden'); }, ms || 1800);
 }
@@ -378,6 +460,7 @@ function renderGrid(){
       upgrid.appendChild(d);
     });
   }
+  Motion.staggerIn(Motion.list('#grid .sec-head, #grid .card, #upgrid .card'));
 }
 
 /* ===== 收藏 ===== */
@@ -404,6 +487,7 @@ function renderFav(){
   var list = TB_TOOLS.filter(function(t){ return isFav(t.id); });
   $('#favEmpty').classList.toggle('hidden', list.length > 0);
   list.forEach(function(t){ g.appendChild(toolCard(t)); });
+  Motion.staggerIn(Motion.list('#favgrid .card'));
 }
 
 /* ===== 使用埋点：来源 IP / 账号 / 工具 / 停留时长 =====
@@ -473,11 +557,13 @@ function openTool(id){
   body.scrollTop = 0;
   try { t.render(body); }
   catch(e){ body.innerHTML = '<div class="empty">工具加载出错：' + e.message + '</div>'; }
-  $('#toolview').classList.remove('hidden');
+  var tv = $('#toolview');
+  tv.classList.remove('hidden');
+  Motion.toolIn(tv);
 }
 function closeTool(){
   _dwellEmit();
-  $('#toolview').classList.add('hidden');
+  Motion.toolOut($('#toolview'));
   if (window.__tbCleanup) window.__tbCleanup.forEach(function(f){ try{ f(); }catch(e){} });
   window.__tbCleanup = [];
   state.tool = null;
@@ -499,6 +585,7 @@ function switchTab(t){
   if (t === 'fav') renderFav();
   if (t === 'me') refreshMe();
   $('#content').scrollTop = 0;
+  Motion.pageIn($('#tab-' + t));
 }
 
 /* ===== 登录态后台校验 ===== */
@@ -525,6 +612,9 @@ function verifySessionBg(){
 
 /* ===== 启动 ===== */
 function boot(){
+  /* 仅当 GSAP 真正可用时才加这个类——CSS 靠它把初始态隐藏，
+     若此处判断失误，所有工具卡会永久不可见，所以这里是全链路最危险的一行 */
+  if (Motion.ok) document.documentElement.classList.add('js-ready');
   applyTheme(state.theme);
   initAuth();
   $('#tabbar').addEventListener('click', function(e){
@@ -534,7 +624,7 @@ function boot(){
   $('#tvBack').onclick = closeTool;
   $('#tvFav').onclick = toggleFav;
   $('#search').addEventListener('input', function(){ state.q = this.value.trim(); renderGrid(); });
-  $('#avatarTop').onclick = function(){ switchTab('me'); };
+  $('#avatarTop').onclick = function(){ Motion.pop(this); switchTab('me'); };
   renderChips();
   renderGrid();
   var ps = document.querySelector('#tab-home .page-sub');
