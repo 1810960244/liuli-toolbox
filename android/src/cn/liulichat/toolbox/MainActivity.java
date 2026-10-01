@@ -124,6 +124,17 @@ public class MainActivity extends Activity {
         registerReceiver(dlReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
     }
 
+    /** 打开系统下载目录（弹窗的「打开」按钮与网页桥共用同一实现） */
+    private void openDownloadsDir() {
+        try {
+            Intent it = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
+            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(it);
+        } catch (Exception e) {
+            toast("无法打开下载目录：" + e.getMessage());
+        }
+    }
+
     /** 下载/保存完成后弹窗：明确告知保存路径，并可一键跳到系统下载目录 */
     private void showSaveDialog(final String name) {
         runOnUiThread(new Runnable() {
@@ -139,7 +150,7 @@ public class MainActivity extends Activity {
                         .setPositiveButton("打开", new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface d, int which) {
-                                openDownloads();
+                                openDownloadsDir();
                             }
                         })
                         .setNegativeButton("知道了", null)
@@ -188,13 +199,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void openDownloads() {
-            try {
-                Intent it = new Intent(DownloadManager.ACTION_VIEW_DOWNLOADS);
-                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(it);
-            } catch (Exception e) {
-                toast("无法打开下载目录：" + e.getMessage());
-            }
+            openDownloadsDir();
         }
     }
 
