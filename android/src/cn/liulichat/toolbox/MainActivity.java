@@ -43,7 +43,7 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://toolbox.liulichat.cn/";
     /* 必须与 .github/workflows/build-apk.yml 的 VERSION_CODE 保持一致，
        网页靠它判断用户装的是不是旧壳 —— 壳太旧时文件选择等能力不可用 */
-    private static final int APP_VERSION = 3;
+    private static final int APP_VERSION = 4;
     private static final int REQ_FILE = 1001;
     private static final int REQ_PERM = 1002;
     private WebView web;
