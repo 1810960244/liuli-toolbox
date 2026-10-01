@@ -16,8 +16,10 @@ if [ -z "${SDK:-}" ] || [ ! -d "$SDK" ]; then
 fi
 [ -n "${SDK:-}" ] && [ -d "$SDK" ] || { echo "找不到 Android SDK（设置 ANDROID_HOME）"; exit 1; }
 
-BT="$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1)"
-PLAT="$(ls -d "$SDK"/platforms/android-3* 2>/dev/null | sort -V | tail -1)"
+BT="$(ls -d "$SDK"/build-tools/* 2>/dev/null | grep -vE 'rc|beta' | sort -V | tail -1)"
+[ -n "$BT" ] || BT="$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1)"
+PLAT="$(ls -d "$SDK"/platforms/android-* 2>/dev/null | grep -vE 'beta|alpha|rc' | sort -V | tail -1)"
+[ -n "$PLAT" ] || PLAT="$(ls -d "$SDK"/platforms/android-* 2>/dev/null | sort -V | tail -1)"
 [ -n "$BT" ]   || { echo "找不到 build-tools"; exit 1; }
 [ -n "$PLAT" ] || { echo "找不到 platforms（需 platforms;android-3x）"; exit 1; }
 echo "SDK  = $SDK"
@@ -31,6 +33,7 @@ rm -rf build out && mkdir -p build/gen build/classes build/dex out
   -I "$PLAT/android.jar" \
   --manifest AndroidManifest.xml \
   -R build/res.zip \
+  --auto-add-overlay \
   --java build/gen \
   --min-sdk-version 29 \
   --target-sdk-version 34 \
