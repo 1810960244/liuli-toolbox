@@ -93,6 +93,36 @@ def admin_ok(key):
         return False
     return hmac.compare_digest(str(key), ADMIN_KEY)
 
+# ---- IP 归属地查询（带内存缓存，供登录提示使用）----
+_geo_cache = {}
+_GEO_TTL = 12 * 3600
+_GEO_LOCAL = re.compile(r'^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc00:|fe80:)')
+
+def geo_lookup(ip):
+    """查 IP 归属地。失败一律返回空串——这是装饰信息，绝不能拖慢或阻塞登录。"""
+    if not ip or _GEO_LOCAL.match(ip):
+        return {'city': '', 'region': '', 'country': '', 'isp': '', 'local': True}
+    hit = _geo_cache.get(ip)
+    if hit and time.time() - hit[1] < _GEO_TTL:
+        return hit[0]
+    out = {'city': '', 'region': '', 'country': '', 'isp': '', 'local': False}
+    try:
+        req = urllib.request.Request('https://ipwho.is/' + quote(ip),
+                                     headers={'User-Agent': 'liuli-toolbox/1.0'})
+        with urllib.request.urlopen(req, timeout=4) as resp:
+            d = json.loads(resp.read().decode('utf-8', 'replace'))
+        if d.get('success') is not False:
+            out['city'] = str(d.get('city') or '')[:40]
+            out['region'] = str(d.get('region') or '')[:40]
+            out['country'] = str(d.get('country') or '')[:40]
+            out['isp'] = str((d.get('connection') or {}).get('isp') or '')[:40]
+    except Exception as e:
+        print('[geo] 查询失败 %s：%s' % (ip, e), flush=True)
+    if len(_geo_cache) > 5000:
+        _geo_cache.clear()
+    _geo_cache[ip] = (out, time.time())
+    return out
+
 # ============================================================
 # 琉璃AI 统一账号对接（外接 /opt/liuli-account 账号服务）
 #   - /api/auth/<action> 代理转发到账号服务
@@ -928,6 +958,14 @@ class H(BaseHTTPRequestHandler):
             return self._json({'ok': False, 'error': '请求过于频繁，请稍后再试'}, 429)
         if p == '/api/health':
             return self._json({'ok': True, 'ts': now(), 'dev': DEV})
+        # 登录提示用：当前来源 IP + 归属地 + 服务器时间
+        if p == '/api/geo':
+            if not rate_ok(real_ip(self.headers, self.client_address[0]), 'geo', 30):
+                return self._json({'ok': False, 'error': 'rate_limited'}, 429)
+            cip = real_ip(self.headers, self.client_address[0])
+            g = geo_lookup(cip)
+            return self._json({'ok': True, 'ip': cip, 'ts': now(),
+                               'tz': 'Asia/Shanghai', **g})
         if p == '/api/me':
             uid = self._auth()
             if not uid:

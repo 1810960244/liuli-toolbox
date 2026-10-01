@@ -78,6 +78,7 @@
     },
     /* 云同步 / 账号 */
     health:   function(){ return req('GET', '/api/health', undefined, 3000); },
+    geo:      function(){ return req('GET', '/api/geo', undefined, 6000); },
     me:       function(){ return req('GET', '/api/me'); },
     getSync:  function(){ return req('GET', '/api/sync'); },
     putSync:  function(favs, settings){ return req('POST', '/api/sync', { favs: favs, settings: settings }); },

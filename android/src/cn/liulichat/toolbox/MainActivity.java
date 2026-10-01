@@ -1,10 +1,14 @@
 package cn.liulichat.toolbox;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.DownloadManager;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
@@ -20,6 +24,8 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 
 import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 百宝箱 · Android 壳
@@ -32,12 +38,16 @@ public class MainActivity extends Activity {
     private static final String HOME = "https://toolbox.liulichat.cn/";
     private WebView web;
     private long lastBack = 0;
+    /* 下载 id → 文件名，用于下载完成后弹窗告知保存位置 */
+    private final Map<Long, String> dlNames = new HashMap<>();
+    private BroadcastReceiver dlReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         web = new WebView(this);
         setContentView(web);
+        registerDownloadReceiver();
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -57,10 +67,12 @@ public class MainActivity extends Activity {
                 try {
                     DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
                     r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-                    r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, guessName(url));
+                    String n = guessName(url);
+                    r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, n);
                     if (userAgent != null) r.addRequestHeader("User-Agent", userAgent);
-                    ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
-                    toast("已开始下载…");
+                    long id = ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
+                    trackDownload(id, n);
+                    toast("已开始下载：" + n);
                 } catch (Exception e) {
                     toast("下载失败：" + e.getMessage());
                 }
@@ -94,6 +106,48 @@ public class MainActivity extends Activity {
         });
     }
 
+    /* 把 DownloadManager 的下载 id 与文件名绑定，完成后才能告诉用户存到哪 */
+    private void trackDownload(long id, String name) {
+        if (id > 0 && name != null) dlNames.put(id, name);
+    }
+
+    private void registerDownloadReceiver() {
+        dlReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context ctx, Intent intent) {
+                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                String name = dlNames.remove(id);
+                if (name == null) return;
+                showSaveDialog(name);
+            }
+        };
+        registerReceiver(dlReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+    }
+
+    /** 下载/保存完成后弹窗：明确告知保存路径，并可一键跳到系统下载目录 */
+    private void showSaveDialog(final String name) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (isFinishing()) return;
+                String dir = Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("已保存")
+                        .setMessage("文件：" + name + "\n\n位置：下载/" + name
+                                + "\n完整路径：" + dir + "/" + name)
+                        .setPositiveButton("打开", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface d, int which) {
+                                openDownloads();
+                            }
+                        })
+                        .setNegativeButton("知道了", null)
+                        .show();
+            }
+        });
+    }
+
     /** 暴露给网页的桥（网页里通过 window.AndroidBridge 调用） */
     public class Bridge {
         @JavascriptInterface
@@ -112,7 +166,7 @@ public class MainActivity extends Activity {
                 v.clear();
                 v.put(MediaStore.Downloads.IS_PENDING, 0);
                 getContentResolver().update(u, v, null, null);
-                toast("已保存到「下载」：" + name);
+                showSaveDialog(name);
             } catch (Exception e) {
                 toast("保存失败：" + e.getMessage());
             }
@@ -124,7 +178,8 @@ public class MainActivity extends Activity {
                 DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
                 r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
                 r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
-                ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
+                long id = ((DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE)).enqueue(r);
+                trackDownload(id, name);
                 toast("已开始下载：" + name);
             } catch (Exception e) {
                 toast("下载失败：" + e.getMessage());
@@ -180,6 +235,10 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (dlReceiver != null) {
+            try { unregisterReceiver(dlReceiver); } catch (Exception ignored) {}
+            dlReceiver = null;
+        }
         if (web != null) {
             web.destroy();
             web = null;

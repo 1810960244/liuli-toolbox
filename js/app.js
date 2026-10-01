@@ -168,6 +168,39 @@ function liuliErrMsg(r){
   var code = String(r.error || r.code || '');
   return m[code] || (r.message || r.error || ('操作失败' + (r.__status ? '（' + r.__status + '）' : '')));
 }
+/* 登录成功后的地区 / IP / 时间提示。
+   归属地查不到只降级显示 IP，任何失败都不阻塞登录流程。 */
+function fmtClock(ts){
+  var d = new Date((ts || Math.floor(Date.now() / 1000)) * 1000);
+  var p = function(n){ return n < 10 ? '0' + n : String(n); };
+  return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function showLoginGeo(prefix){
+  var el = $('#loginInfo');
+  if (el) el.textContent = '读取中…';
+  if (!window.TBApi || !window.TBApi.geo){
+    if (el) el.textContent = '-';
+    toast(prefix || '登录成功');
+    return;
+  }
+  window.TBApi.geo().then(function(g){
+    if (!g || !g.ok){
+      if (el) el.textContent = '未知';
+      toast(prefix || '登录成功');
+      return;
+    }
+    var where = g.local ? '本机'
+      : [g.country, g.region, g.city].filter(Boolean).join(' · ')
+      || (g.ip || '未知');
+    if (g.isp) where += ' · ' + g.isp;
+    var when = fmtClock(g.ts);
+    if (el) el.textContent = where + ' · ' + when + '\nIP ' + (g.ip || '-');
+    toast((prefix || '登录成功') + ' · ' + where + ' · ' + when, 3600);
+  }, function(){
+    if (el) el.textContent = '-';
+    toast(prefix || '登录成功');
+  });
+}
 function liuliLogin(email, pw){
   return window.TBApi.auth('login', { email: email, password: pw }).then(function(r){
     if (r && r.accessToken && r.user){
@@ -177,7 +210,7 @@ function liuliLogin(email, pw){
       state.user = { email: mail, name: mail.split('@')[0], role: r.user.role || 'user', from: 'liuli', ts: Date.now() };
       LS.set('tb_user', state.user);
       showMain();
-      toast('登录成功 · 琉璃AI 账号 ☁️');
+      showLoginGeo('登录成功 · 琉璃AI账号');
       pullSync();
       return true;
     }
@@ -189,7 +222,7 @@ function loginLocalDemo(){
   state.user = { name: '本地体验', from: 'local', ts: Date.now() };
   LS.set('tb_user', state.user);
   showMain();
-  toast('已进入本地模式（数据不云同步）');
+  showLoginGeo('已进入本地模式');
 }
 function initAuth(){
   var tab = $('#loginTab');
