@@ -185,16 +185,32 @@ public class MainActivity extends Activity {
     }
 
     private void registerDownloadReceiver() {
-        dlReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context ctx, Intent intent) {
-                long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-                String name = dlNames.remove(id);
-                if (name == null) return;
-                showSaveDialog(name);
+        /* Android 13（API 33）起，targetSdk >= 33 的应用调 registerReceiver 必须显式
+           指定 RECEIVER_EXPORTED / RECEIVER_NOT_EXPORTED，否则直接抛 SecurityException。
+           这行在 onCreate 里，一旦抛出就是启动闪退 —— 必须按版本分支。 */
+        try {
+            dlReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context ctx, Intent intent) {
+                    long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+                    String name = dlNames.remove(id);
+                    if (name == null) return;
+                    showSaveDialog(name);
+                }
+            };
+            IntentFilter f = new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(dlReceiver, f, Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(dlReceiver, f);
             }
-        };
-        registerReceiver(dlReceiver, new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE));
+        } catch (Exception e) {
+            /* 下载完成弹窗是次要能力，注册失败也要能正常用 App */
+            dlReceiver = null;
+            if (e.getMessage() != null) {
+                android.util.Log.w("Toolbox", "下载广播注册失败：" + e.getMessage());
+            }
+        }
     }
 
     /** 打开系统下载目录（弹窗的「打开」按钮与网页桥共用同一实现） */
@@ -214,8 +230,11 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 if (isFinishing()) return;
-                String dir = Environment.getExternalStoragePublicDirectory(
-                        Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
+                String dir = "下载";
+                try {
+                    dir = Environment.getExternalStoragePublicDirectory(
+                            Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
+                } catch (Exception ignored) {}
                 new AlertDialog.Builder(MainActivity.this)
                         .setTitle("已保存")
                         .setMessage("文件：" + name + "\n\n位置：下载/" + name

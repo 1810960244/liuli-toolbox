@@ -4,6 +4,10 @@ server/api.log
 server/__pycache__/
 *.pyc
 
+# 后端不入库：api.py / setup.sh / test.sh 只存在于服务器 /opt/toolbox/server，
+# 仓库仅保留前端与 Android 壳。改后端请在服务器上直接改并 restart toolbox
+server/
+
 # 构建产物
 android/build/
 android/out/
