@@ -776,7 +776,30 @@ function verifySessionBg(){
 }
 
 /* ===== 启动 ===== */
+
+/* 平台检测：给 html 打 data-platform，供 CSS 字体/细节分支使用 */
+function detectPlatform(){
+  /* 顺序：先认 UA 明确特征，再兜底。
+     坑点：iPadOS 13+ 的 UA 伪装成 Macintosh，只能靠触摸能力区分。
+     但 navigator.maxTouchPoints 不可靠 —— Windows 上的 Edge 无触屏也返回 10。
+     所以用 'ontouchstart' in window：iPad 一定有，Mac 一定没有。 */
+  var ua = navigator.userAgent || '', pf = navigator.platform || '';
+  var isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 1 && /Mobile|iPad/i.test(ua));
+  var p = 'other';
+  if (/iPhone|iPod/i.test(ua)) p = 'ios';
+  else if (/Android/i.test(ua)) p = 'android';
+  else if (/Windows|Win32|Win64/i.test(ua)) p = 'win';
+  else if (/iPad/i.test(ua)) p = 'ios';
+  else if (/Macintosh|Mac OS X/i.test(ua)) p = (('ontouchstart' in window) ? 'ios' : 'mac');
+  else if (/Mac/i.test(pf)) p = (('ontouchstart' in window) ? 'ios' : 'mac');
+  else if (/Win/i.test(pf)) p = 'win';
+  document.documentElement.setAttribute('data-platform', p);
+  document.documentElement.setAttribute('data-shell', (window.AndroidBridge ? 'app' : 'web'));
+  return p;
+}
+
 function boot(){
+  try { detectPlatform(); } catch(e){}
   /* 仅当 GSAP 真正可用时才加这个类——CSS 靠它把初始态隐藏，
      若此处判断失误，所有工具卡会永久不可见，所以这里是全链路最危险的一行 */
   if (Motion.ok) document.documentElement.classList.add('js-ready');

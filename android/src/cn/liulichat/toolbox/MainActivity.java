@@ -67,9 +67,30 @@ public class MainActivity extends Activity {
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
+        s.setDatabaseEnabled(true);
+
+        /* ── 跨平台显示适配（App 内）── */
+        // 尊重页面的 viewport meta，否则会按桌面宽度渲染，手机上字小得没法看
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
+        // 工具类应用不需要页面缩放，禁用以免误触双指放大破版
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
+        s.setDisplayZoomControls(false);
+        // 固定文字缩放为 100%：系统字体调大时 WebView 会跟着放大，直接把布局撑坏
+        s.setTextZoom(100);
+
+        /* ── 媒体与安全 ── */
+        // 视频类工具需要不经手势就能播放
         s.setMediaPlaybackRequiresUserGesture(false);
+        // 只允许读取用户主动选择的内容（配合 onShowFileChooser）
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(true);
+        // 本站全 HTTPS，混合内容按兼容模式处理即可
+        s.setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        s.setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
+        // 不用定位，直接关掉（页面里天气工具走的是 IP 定位）
+        s.setGeolocationEnabled(false);
 
         /* WebView 默认不处理 mailto: / tel: 这类外部 scheme —— 点了完全没反应。
            反馈邮件按钮要能用，必须自己接管。 */
