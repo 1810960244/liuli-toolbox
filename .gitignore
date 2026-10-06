@@ -34,3 +34,6 @@ android/keystore.p12
 # 凭据
 .env
 .env.local
+
+# 构建产物（旧密钥签的包不进仓库，APK 走 Release 或由 CI 产出）
+download/*.apk
