@@ -22,15 +22,19 @@ for d, s in sizes.items():
 print('icons ok:', ', '.join('%s=%dpx' % (d, s) for d, s in sizes.items()))
 
 # 2) keystore.p12
-PASS = 'KS_PASS_REMOVED'
+# 口令不再硬编码：这个脚本以前会把密钥和口令一起生成到仓库里，
+# 结果两样都进了 git 历史。现在只从环境变量读，没给就跳过生成。
+PASS = os.environ.get('KS_PASS', '')
 out = os.path.join(BASE, 'keystore.p12')
-if os.path.exists(out):
+if not PASS:
+    print('未设置 KS_PASS，跳过密钥库生成（密钥不进仓库）')
+elif os.path.exists(out):
     print('keystore 已存在，跳过（如需重置请手动删除）')
 else:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     name = x509.Name([
         x509.NameAttribute(NameOID.COMMON_NAME, 'Toolbox'),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Liulichat'),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Toolbox'),
         x509.NameAttribute(NameOID.COUNTRY_NAME, 'CN'),
     ])
     cert = (x509.CertificateBuilder()
@@ -45,4 +49,4 @@ else:
         encryption_algorithm=serialization.BestAvailableEncryption(PASS.encode()))
     with open(out, 'wb') as f:
         f.write(data)
-    print('keystore ok: %s (%d bytes)  alias=toolbox  pass=%s' % (out, len(data), PASS))
+    print('keystore ok: %s (%d bytes)  alias=toolbox' % (out, len(data)))

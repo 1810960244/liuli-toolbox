@@ -20,3 +20,17 @@ tb_search.py
 search.log
 
 .DS_Store
+
+# 签名密钥绝不入库：密钥曾连同口令一起躺在仓库和提交历史里，这行是防止再犯。
+# CI 构建时从 GitHub Secret 还原成临时文件。
+android/keystore.p12
+*.p12
+*.jks
+*.keystore
+
+# 明文文档：里面写过服务器 IP 与整套部署拓扑，只在服务器上留档
+部署改动清单.md
+
+# 凭据
+.env
+.env.local

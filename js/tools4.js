@@ -369,7 +369,7 @@ function tFx(root){
     '</div>' +
     '<div class="label">其他参考汇率</div>' +
     '<div class="result-box" id="fxList" style="font-size:12.5px;line-height:1.9">-</div>' +
-    '<p class="hint" style="margin-top:10px">数据来自 open.er-api.com（免费公开接口 · 160+ 币种 · 每日更新）</p>';
+    '<p class="hint" style="margin-top:10px">数据来自公开汇率接口（160+ 币种 · 每日更新 · 多源自动切换）</p>';
   [qs('#fxFrom', root), qs('#fxTo', root)].forEach(function(sel, i){
     CURR.forEach(function(c){
       var o = document.createElement('option');
@@ -384,17 +384,39 @@ function tFx(root){
     if (rates && base === from){ cb(); return; }
     base = from;
     qs('#fxOut', root).textContent = '获取汇率中…';
-    fetch('https://open.er-api.com/v6/latest/' + from)
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        rates = d.rates || {}; rates[from] = 1;
-        cb();
-      })
-      .catch(function(){
+    var srcs = [
+      { u: 'https://api.exchangerate-api.com/v4/latest/' },
+      { u: 'https://open.er-api.com/v6/latest/' },
+      { u: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/', mod: true }
+    ];
+    (function next(i){
+      if (i >= srcs.length){
         rates = null;
         qs('#fxOut', root).textContent = '获取失败';
         qs('#fxRate', root).textContent = '网络不可用或接口异常，稍后再试';
-      });
+        return;
+      }
+      var s = srcs[i];
+      var url = s.mod ? s.u + from.toLowerCase() + '.json' : s.u + from;
+      var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var tm = ctl ? setTimeout(function(){ ctl.abort(); }, 5000) : null;
+      fetch(url, ctl ? { signal: ctl.signal } : undefined)
+        .then(function(r){ if (tm) clearTimeout(tm); return r.json(); })
+        .then(function(d){
+          var bank = d && d.rates;
+          if (s.mod){
+            var low = d && d[from.toLowerCase()];
+            if (low && typeof low === 'object'){
+              bank = {};
+              for (var k in low) bank[k.toUpperCase()] = low[k];
+            }
+          }
+          if (!bank || typeof bank !== 'object' || !Object.keys(bank).length) throw new Error('no rates');
+          rates = bank; rates[from] = 1;
+          cb();
+        })
+        .catch(function(){ if (tm) clearTimeout(tm); next(i + 1); });
+    })(0);
   }
   function calc(){
     var amt = parseFloat(qs('#fxAmt', root).value) || 0;

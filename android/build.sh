@@ -54,10 +54,13 @@ cp build/base.apk build/merged.apk
 "$BT/zipalign" -f 4 build/merged.apk build/aligned.apk
 
 # ---------- 6. 签名 ----------
+# 口令只从环境变量读。这里以前写了个默认值，那个默认值连同密钥一起进过 git 历史，
+# 已经不能再用 —— 没设就直接失败，别让本地/CI 悄悄用默认值签出包。
+: "${KS_PASS:?必须先设置 KS_PASS 环境变量（CI 里由 GitHub Secret 注入）}"
 [ -f keystore.p12 ] || { echo "缺少 keystore.p12"; exit 1; }
 "$BT/apksigner" sign \
   --ks keystore.p12 --ks-type PKCS12 \
-  --ks-pass "pass:${KS_PASS:-KS_PASS_REMOVED}" \
+  --ks-pass "pass:${KS_PASS}" \
   --ks-key-alias toolbox \
   --out out/toolbox.apk build/aligned.apk
 "$BT/apksigner" verify --print-certs out/toolbox.apk | head -4

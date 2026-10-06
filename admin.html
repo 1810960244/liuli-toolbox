@@ -402,8 +402,15 @@ function countUp(node, to, suffix){
 }
 
 /* ---------- 请求 ---------- */
+function apiH(path, opt){
+  opt = opt || {};
+  var h = { 'X-Admin-Key': KEY };
+  if(opt.headers){ for(var k in opt.headers) h[k] = opt.headers[k]; }
+  opt.headers = h; opt.credentials = 'same-origin';
+  return fetch(BASE + path, opt);
+}
 function api(path){
-  return fetch(BASE + path, { credentials:'same-origin' }).then(function(r){
+  return apiH(path).then(function(r){
     if(r.status === 401){ onBadKey(); return null; }
     return r.json();
   });
@@ -650,7 +657,7 @@ function loadList(){
     }
     tb.appendChild(tr);
   }
-  var qs = '/api/admin/usage?key=' + encodeURIComponent(KEY) +
+  var qs = '/api/admin/usage?t=' + Date.now() +
            '&limit=' + S.limit + '&offset=' + S.offset +
            (S.q ? '&q=' + encodeURIComponent(S.q) : '') +
            (S.tool ? '&tool=' + encodeURIComponent(S.tool) : '') +
@@ -662,7 +669,7 @@ function loadList(){
   });
 }
 function loadStats(){
-  return api('/api/admin/stats?key=' + encodeURIComponent(KEY) + '&days=' + $('#days').value)
+  return api('/api/admin/stats?days=' + $('#days').value)
     .then(function(j){
       if(!j) return;
       if(!j.ok){ toast(j.error || '加载失败'); return; }
@@ -692,7 +699,7 @@ $('#gateForm').addEventListener('submit', function(e){
   if(!v){ err.textContent = '请输入管理口令'; err.classList.add('on'); return; }
   $('#btnIn').disabled = true;
   $('#btnIn').textContent = '校验中…';
-  fetch(BASE + '/api/admin/stats?days=1&key=' + encodeURIComponent(v), { credentials:'same-origin' })
+  fetch(BASE + '/api/admin/stats?days=1', { credentials:'same-origin', headers: { 'X-Admin-Key': v } })
     .then(function(r){
       if(r.status === 401) return { ok:false, __401:true };
       return r.json();
@@ -754,7 +761,7 @@ function boot(){ loadStats(); loadList(); }
 
 // 自动登录
 if(KEY){
-  fetch(BASE + '/api/admin/stats?days=1&key=' + encodeURIComponent(KEY), { credentials:'same-origin' })
+  fetch(BASE + '/api/admin/stats?days=1', { credentials:'same-origin', headers: { 'X-Admin-Key': KEY } })
     .then(function(r){ return r.ok ? r.json() : { ok:false }; })
     .then(function(j){
       if(j && j.ok){

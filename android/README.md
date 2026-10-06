@@ -32,10 +32,13 @@ cd android && bash build.sh
 - `AndroidBridge.saveBase64(name, mime, base64)` — 小于 40MB 的文件（图片/ZIP）保存到系统「下载」目录
 - `AndroidBridge.downloadUrl(url, name)` — 大文件（视频/音频）交给系统 DownloadManager
 
-## 签名密钥注意
-- `keystore.p12`（密码默认见 build.sh，可用环境变量 `KS_PASS` 覆盖）
-- **此文件不要丢失**：以后升级安装必须用同一把钥匙签名，否则无法覆盖安装
-- 仓库请保持私有；如泄露可将密钥换新（但老版本用户需卸载重装）
+## 签名密钥
+- **密钥不在仓库里**，`.gitignore` 已排除 `*.p12`。
+- 本地构建：把密钥放到 `android/keystore.p12`，并设 `KS_PASS` 环境变量。
+- 云构建：仓库 Secrets 配 `KEYSTORE_BASE64`（密钥的 base64）和 `KS_PASS`（口令），
+  CI 构建前还原、构建后随 runner 销毁。
+- 没设 `KS_PASS` 时 `build.sh` 直接退出 —— 不会用默认口令悄悄签出一个包。
+- **密钥别丢**：升级安装必须同一把钥匙签名，否则用户装不上，得卸载重装。
 
 ## 版本号
 构建时可用环境变量注入：`VERSION_CODE` / `VERSION_NAME`（默认 1 / 1.0.0）。

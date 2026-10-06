@@ -18,11 +18,22 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      # 签名密钥不进仓库：从 Secret 还原成临时文件，构建完随 runner 销毁
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::缺少 KEYSTORE_BASE64 secret，无法签名"; exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/keystore.p12
+
       - name: Build APK
         working-directory: android
         env:
           VERSION_CODE: '5'
           VERSION_NAME: '1.0.4'
+          KS_PASS: ${{ secrets.KS_PASS }}
         run: |
           chmod +x build.sh
           bash build.sh
